@@ -1,14 +1,12 @@
 import React from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import Header from "../components/Header";
 
 export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Profile</Text>
-      </View>
+      <Header title="Profile" />
 
       {/* User Card and Status - now in one block */}
       <View style={styles.block}>
@@ -50,7 +48,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* New Block: Invite Friends, Rate App, Privacy Policy */}
-      <View style={styles.block}>
+      <View style={[styles.block, styles.lastBlock]}>
         <MenuItem icon="person-add" color="#1976d2" label="Invite Friends" />
         <MenuItem icon="star-border" color="#f4a100" label="Rate App" />
         <MenuItem icon="description" color="#43a047" label="Privacy Policy" />
@@ -73,17 +71,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fafafa",
-  },
-
-  header: {
-    padding: 15,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  headerText: {
-    fontSize: 20,
-    fontWeight: "600",
   },
 
   userCard: {
@@ -149,6 +136,10 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
+  },
+
+  lastBlock: {
+    marginBottom: 20, // Add bottom margin to the last block
   },
 
   menuItem: {

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
+import { useWebRTC } from '../contexts/WebRTCContext';
 
 // DialPad Component
 const DialPad = ({ onPressDigit, onClose, onCall, onDelete }) => {
@@ -52,9 +53,18 @@ const DialPad = ({ onPressDigit, onClose, onCall, onDelete }) => {
   );
 };
 
-const CallsScreen = () => {
+const CallsScreen = ({ navigation }) => {
   const [showDialer, setShowDialer] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  
+  const { userId, makeCall, callStatus } = useWebRTC();
+
+  // Navigate to call screen when call is initiated
+  useEffect(() => {
+    if (callStatus === 'calling' || callStatus === 'incoming') {
+      navigation.navigate('Call');
+    }
+  }, [callStatus, navigation]);
 
   const toggleDialer = () => {
     setShowDialer(!showDialer);
@@ -64,19 +74,30 @@ const CallsScreen = () => {
   };
 
   const handleNumberPress = (number) => {
-    setPhoneNumber(phoneNumber + number);
+    // Only allow 4 digits for user ID
+    if (phoneNumber.length < 4 || number === '*' || number === '#') {
+      setPhoneNumber(phoneNumber + number);
+    }
   };
 
   const handleDelete = () => {
     setPhoneNumber(phoneNumber.slice(0, -1));
   };
 
-  const handleCall = () => {
-    // Here should be the logic to make a call
-    console.log('Calling', phoneNumber);
-    // For now, just hide the dialer
-    setShowDialer(false);
-    setPhoneNumber('');
+  const handleCall = async () => {
+    // Validate that we have a 4-digit number
+    if (phoneNumber.length !== 4 || !/^\d{4}$/.test(phoneNumber)) {
+      Alert.alert('Invalid Number', 'Please enter a valid 4-digit user ID');
+      return;
+    }
+
+    try {
+      // Make the call using WebRTC context
+      await makeCall(phoneNumber);
+    } catch (error) {
+      console.error('Error making call:', error);
+      Alert.alert('Call Failed', 'Failed to initiate call. Please try again.');
+    }
   };
 
   return (
@@ -87,6 +108,9 @@ const CallsScreen = () => {
         <>
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Today is a great day to call</Text>
+            <Text style={styles.userIdText}>
+              Your User ID: {userId || 'Loading...'}
+            </Text>
           </View>
           <TouchableOpacity style={styles.fab} onPress={toggleDialer}>
             <Icon name="dialpad" size={24} color="#fff" />
@@ -101,6 +125,7 @@ const CallsScreen = () => {
               style={styles.phoneNumberText}
               value={phoneNumber}
               editable={false}
+              placeholder="Enter 4-digit ID"
             />
           </View>
           
@@ -123,6 +148,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { fontSize: 16, color: 'gray' },
+  userIdText: { 
+    fontSize: 14, 
+    color: '#D88A22', 
+    marginTop: 20,
+    fontWeight: 'bold'
+  },
   fab: {
     position: 'absolute',
     bottom: 20,
@@ -171,7 +202,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
 
-  /* DIGIT BUTTONS GRID */
+  /* DIGITS BUTTONS GRID */
   row: {
     flexDirection: "row",
     justifyContent: "space-evenly",
