@@ -1,97 +1,130 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# CallApp - Audio Calling Application
 
-# Getting Started
+A React Native application that enables audio calling between users using WebRTC technology.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
 
-## Step 1: Start Metro
+- Audio calling between users
+- Mute/unmute functionality
+- Speakerphone toggle
+- Call rejection/acceptance
+- Real-time communication using WebRTC
+- Tab-based navigation interface
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Technologies Used
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+- React Native
+- WebRTC (react-native-webrtc)
+- Socket.IO for signaling
+- Node.js Express server
+- React Navigation for tab navigation
 
-```sh
-# Using npm
+## Prerequisites
+
+- Node.js (version 16 or higher)
+- npm or yarn
+- Android Studio or Xcode for mobile development
+- Two devices/emulators for testing calling functionality
+
+## Setup Instructions
+
+### 1. Install Dependencies
+
+```bash
+# Install React Native dependencies
+npm install
+
+# Install server dependencies
+cd server
+npm install
+```
+
+### 2. Start the Signaling Server
+
+```bash
+cd server
 npm start
-
-# OR using Yarn
-yarn start
 ```
 
-## Step 2: Build and run your app
+The server will start on port 3000.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+### 3. Update Server IP (if needed)
 
-### Android
+In `App.tsx`, update the Socket.IO connection URL to match your server IP:
 
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```javascript
+const newSocket = io('http://YOUR_SERVER_IP:3000');
 ```
 
-### iOS
+### 4. Run the Mobile App
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+For Android:
+```bash
+npx react-native run-android
 ```
 
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
+For iOS:
+```bash
+npx react-native run-ios
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## How to Use
 
-```sh
-# Using npm
-npm run ios
+1. Start the app on two different devices/emulators
+2. Note the User ID displayed on each device
+3. Enter one device's User ID on the other device to initiate a call
+4. Accept the incoming call on the receiving device
+5. Use the call controls to mute/unmute or end the call
 
-# OR using Yarn
-yarn ios
+## Project Structure
+
+```
+CallApp/
+├── src/
+│   └── components/
+│       ├── MainScreen.js             # Main screen with tab navigation
+│       ├── ChatsScreen.js            # Chats interface
+│       ├── DialerScreen.tsx          # Main dialer interface
+│       ├── CallScreen.tsx            # Active call screen
+│       └── IncomingCallScreen.tsx    # Incoming call screen
+├── server/
+│   ├── server.js                     # Signaling server
+│   └── package.json                  # Server dependencies
+├── App.tsx                           # Main application component
+└── index.js                          # Entry point
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Network Connectivity
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+This application uses WebRTC for peer-to-peer audio communication. The connection process works as follows:
 
-## Step 3: Modify your app
+1. **STUN Servers**: Used to discover public IP addresses when both devices are on different networks but have direct internet access.
 
-Now that you have successfully run the app, let's make changes!
+2. **TURN Servers**: Used as relay servers when direct peer-to-peer connections are not possible due to NATs or firewalls. The app includes several public TURN servers for this purpose.
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+3. **Connection Process**:
+   - Devices exchange signaling information through the Socket.IO server
+   - Devices attempt direct P2P connection using STUN
+   - If direct connection fails, TURN servers are used as relays
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## Production Considerations
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+1. **TURN Server**: For production, deploy a dedicated TURN server to handle NAT traversal when direct peer-to-peer connections aren't possible. Public TURN servers may be unreliable or have limited capacity.
 
-## Congratulations! :tada:
+2. **Security**: Implement authentication and encryption for signaling messages.
 
-You've successfully run and modified your React Native App. :partying_face:
+3. **Push Notifications**: Integrate push notifications for incoming calls when the app is in the background.
 
-### Now what?
+4. **Error Handling**: Add more robust error handling for network issues and WebRTC failures.
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Troubleshooting
 
-# Troubleshooting
+- If calls don't connect across different networks, ensure proper TURN server configuration
+- Check that the signaling server is running and accessible from both devices
+- Verify microphone permissions are granted to the app
+- Network firewalls or restrictive NATs may prevent connections
+- For best results, test with physical devices rather than emulators
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## License
 
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+This project is licensed under the MIT License.
