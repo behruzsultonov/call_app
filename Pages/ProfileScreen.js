@@ -2,11 +2,18 @@ import React from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Header from "../components/Header";
+import { useTranslation } from 'react-i18next';
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }) {
+  const { t } = useTranslation();
+  
+  const handleLanguagePress = () => {
+    navigation.navigate('LanguageSelection');
+  };
+
   return (
     <ScrollView style={styles.container}>
-      <Header title="Profile" />
+      <Header title={t('profile')} />
 
       {/* User Card and Status - now in one block */}
       <View style={styles.block}>
@@ -28,38 +35,38 @@ export default function ProfileScreen() {
         {/* Status Button */}
         <TouchableOpacity style={styles.statusButton}>
           <Icon name="mood" size={22} color="#f4a100" />
-          <Text style={styles.statusText}>Set a custom status</Text>
+          <Text style={styles.statusText}>{t('setCustomStatus')}</Text>
         </TouchableOpacity>
       </View>
- 
+
        {/* Category Blocks */}
        <View style={styles.block}>
-        <MenuItem icon="sim-card" color="#f4a100" label="Tariff plans" />
-        <MenuItem icon="bookmark-border" color="#1976d2" label="Saved Messages" />
+        <MenuItem icon="sim-card" color="#f4a100" label={t('tariffPlans')} />
+        <MenuItem icon="bookmark-border" color="#1976d2" label={t('savedMessages')} />
       </View>
 
       <View style={styles.block}>
-        <MenuItem icon="notifications-none" color="#1e88e5" label="Notifications" />
-        <MenuItem icon="lock-outline" color="#6d4c41" label="Privacy and Security" />
-        <MenuItem icon="call" color="#8e24aa" label="Call Settings" />
-        <MenuItem icon="storage" color="#43a047" label="Data and Storage" />
-        <MenuItem icon="palette" color="#e53935" label="Appearance" />
-        <MenuItem icon="language" color="#8e24aa" label="Language" />
+        <MenuItem icon="notifications-none" color="#1e88e5" label={t('notifications')} />
+        <MenuItem icon="lock-outline" color="#6d4c41" label={t('privacyAndSecurity')} />
+        <MenuItem icon="call" color="#8e24aa" label={t('callSettings')} />
+        <MenuItem icon="storage" color="#43a047" label={t('dataAndStorage')} />
+        <MenuItem icon="palette" color="#e53935" label={t('appearance')} />
+        <MenuItem icon="language" color="#8e24aa" label={t('language')} onPress={handleLanguagePress} />
       </View>
 
       {/* New Block: Invite Friends, Rate App, Privacy Policy */}
       <View style={[styles.block, styles.lastBlock]}>
-        <MenuItem icon="person-add" color="#1976d2" label="Invite Friends" />
-        <MenuItem icon="star-border" color="#f4a100" label="Rate App" />
-        <MenuItem icon="description" color="#43a047" label="Privacy Policy" />
+        <MenuItem icon="person-add" color="#1976d2" label={t('inviteFriends')} />
+        <MenuItem icon="star-border" color="#f4a100" label={t('rateApp')} />
+        <MenuItem icon="description" color="#43a047" label={t('privacyPolicy')} />
       </View>
     </ScrollView>
   );
 }
 
-function MenuItem({ icon, label, color }) {
+function MenuItem({ icon, label, color, onPress }) {
   return (
-    <TouchableOpacity style={styles.menuItem}>
+    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
       <Icon name={icon} size={24} color={color} />
       <Text style={styles.menuText}>{label}</Text>
       <Icon name="chevron-right" size={20} color="#bdbdbd" style={{ marginLeft: "auto" }} />

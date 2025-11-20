@@ -9,8 +9,11 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
+import { useTranslation } from 'react-i18next';
 
 export default function ChatsScreen() {
+  const { t } = useTranslation();
+  
   const chats = [
     {
       id: '1',
@@ -59,7 +62,7 @@ export default function ChatsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Chats" showSearch={true} />
+      <Header title={t('chats')} showSearch={true} />
       
       <FlatList
         data={chats}

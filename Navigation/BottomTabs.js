@@ -1,14 +1,18 @@
 import React from 'react';
+import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import CallsScreen from '../Pages/CallsScreen';
 import ContactsScreen from '../Pages/ContactsScreen';
 import ChatsScreen from '../Pages/ChatsScreen';
 import ProfileScreen from '../Pages/ProfileScreen';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 
 const Tab = createBottomTabNavigator();
 
 export default function BottomTabs() {
+  const { t } = useTranslation();
+  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -27,6 +31,17 @@ export default function BottomTabs() {
             default: iconName = 'circle'; break;
           }
           return <Icon name={iconName} size={size} color={color} />;
+        },
+        tabBarLabel: ({ focused, color }) => {
+          let label;
+          switch(route.name) {
+            case 'Chats': label = t('chats'); break;
+            case 'Calls': label = t('calls'); break;
+            case 'Contacts': label = t('contacts'); break;
+            case 'Profile': label = t('profile'); break;
+            default: label = route.name; break;
+          }
+          return <Text style={{ color }}>{label}</Text>;
         },
       })}
     >

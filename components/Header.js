@@ -2,14 +2,23 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-const Header = ({ title, showSearch = false, onSearchPress }) => {
+const Header = ({ title, showSearch = false, onSearchPress, onBack }) => {
   return (
     <View style={styles.container}>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Icon name="arrow-back" size={24} color="#D88A22" />
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.placeholder} />
+      )}
       <Text style={styles.title}>{title}</Text>
-      {showSearch && (
+      {showSearch ? (
         <TouchableOpacity onPress={onSearchPress}>
           <Icon name="search" size={24} color="#D88A22" />
         </TouchableOpacity>
+      ) : (
+        <View style={styles.placeholder} />
       )}
     </View>
   );
@@ -38,6 +47,14 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#D88A22',
+    flex: 1,
+    textAlign: 'center',
+  },
+  backButton: {
+    padding: 4,
+  },
+  placeholder: {
+    width: 24, // Same width as icons to keep title centered
   },
 });
 

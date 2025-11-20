@@ -8,16 +8,19 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Header from "../components/Header";
+import { useTranslation } from 'react-i18next';
 
 export default function ContactsScreen() {
+  const { t } = useTranslation();
+  
   return (
     <View style={styles.container}>
-      <Header title="Contacts" showSearch={true} />
+      <Header title={t('contacts')} showSearch={true} />
 
       {/* EMPTY ILLUSTRATION */}
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>
-          Your contact list is empty. Fix it by clicking the "Add contact"
+          {t('emptyContactList')}
         </Text>
       </View>
 

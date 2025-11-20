@@ -9,8 +9,10 @@ import {
 } from 'react-native';
 import CountryPicker from 'react-native-country-picker-modal';
 import Header from '../components/Header';
+import { useTranslation } from 'react-i18next';
 
 export default function PhoneAuthScreen({ navigation }) {
+  const { t } = useTranslation();
   const [countryCode, setCountryCode] = useState('TJ');
   const [callingCode, setCallingCode] = useState('992');
   const [countryName, setCountryName] = useState('Tajikistan'); // Added state for country name
@@ -24,13 +26,13 @@ export default function PhoneAuthScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Authorization" />
+      <Header title={t('authorization')} />
       
       <View style={styles.content}>
         {/* Title */}
-        <Text style={styles.title}>Your Phone</Text>
+        <Text style={styles.title}>{t('enterPhoneNumber')}</Text>
         <Text style={styles.subtitle}>
-          Please confirm your country code and enter your phone number.
+          {t('enterPhoneNumber')}
         </Text>
 
         {/* Country Picker */}
@@ -54,7 +56,7 @@ export default function PhoneAuthScreen({ navigation }) {
         <View style={styles.phoneRow}>
           <Text style={styles.prefix}>+{callingCode}</Text>
           <TextInput
-            placeholder="Phone number"
+            placeholder={t('phoneNumber')}
             keyboardType="phone-pad"
             style={styles.input}
             value={phone}
@@ -66,12 +68,12 @@ export default function PhoneAuthScreen({ navigation }) {
       <View style={styles.bottomContainer}>
         {/* Continue button */}
         <TouchableOpacity style={styles.button} onPress={handleContinue}>
-          <Text style={styles.buttonText}>Continue</Text>
+          <Text style={styles.buttonText}>{t('continue')}</Text>
         </TouchableOpacity>
 
         <Text style={styles.terms}>
-          By entering your phone number you agree with the{' '}
-          <Text style={styles.link}>Terms of Service</Text>
+          {t('enterPhoneNumber')}{' '}
+          <Text style={styles.link}>{t('phoneNumber')}</Text>
         </Text>
       </View>
     </SafeAreaView>

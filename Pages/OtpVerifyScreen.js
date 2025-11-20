@@ -9,8 +9,10 @@ import {
   Image,
 } from 'react-native';
 import Header from '../components/Header';
+import { useTranslation } from 'react-i18next';
 
 export default function OtpVerifyScreen({ navigation }) {
+  const { t } = useTranslation();
   const [code, setCode] = useState(['', '', '', '']);
   const inputs = useRef([]);
   const [timer, setTimer] = useState(60);
@@ -53,7 +55,7 @@ export default function OtpVerifyScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Authorization" />
+      <Header title={t('authorization')} />
       
       {/* Icon */}
       <View style={styles.iconContainer}>
@@ -64,11 +66,7 @@ export default function OtpVerifyScreen({ navigation }) {
           style={styles.icon}
         />
       </View>
-
-      {/* Device name */}
-      <Text style={styles.deviceText}>Redmi M2006C3MG,{'\n'}Android 10</Text>
-
-      <Text style={styles.subText}>Check your device</Text>
+      <Text style={styles.subText}>{t('enterCode')}</Text>
 
       {/* OTP Input */}
       <View style={styles.otpRow}>
@@ -93,14 +91,14 @@ export default function OtpVerifyScreen({ navigation }) {
       {/* Timer */}
       <Text style={styles.timer}>
         {timer > 0
-          ? `${timer} seconds to resend code`
-          : `Resend code`}
+          ? `${timer} ${t('secondsToResendCode')}`
+          : t('resendCode')}
       </Text>
 
       {/* Verify button - REMOVED */}
       {/* 
       <TouchableOpacity style={styles.button} onPress={handleVerify}>
-        <Text style={styles.buttonText}>Verify</Text>
+        <Text style={styles.buttonText}>{t('verify')}</Text>
       </TouchableOpacity>
       */}
     </SafeAreaView>

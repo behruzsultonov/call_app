@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Aler
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
 import { useWebRTC } from '../contexts/WebRTCContext';
+import { useTranslation } from 'react-i18next';
 
 // DialPad Component
-const DialPad = ({ onPressDigit, onClose, onCall, onDelete }) => {
+const DialPad = ({ onPressDigit, onClose, onCall, onDelete, t }) => {
   const digits = [
     ["1", "2", "3"],
     ["4", "5", "6"],
@@ -35,7 +36,7 @@ const DialPad = ({ onPressDigit, onClose, onCall, onDelete }) => {
         
         {/* CLOSE */}
         <TouchableOpacity onPress={onClose} style={styles.bottomButtonLeft}>
-          <Text style={styles.closeText}>Закрыть</Text>
+          <Text style={styles.closeText}>{t('close')}</Text>
         </TouchableOpacity>
 
         {/* CALL BUTTON */}
@@ -54,6 +55,7 @@ const DialPad = ({ onPressDigit, onClose, onCall, onDelete }) => {
 };
 
 const CallsScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const [showDialer, setShowDialer] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   
@@ -87,7 +89,7 @@ const CallsScreen = ({ navigation }) => {
   const handleCall = async () => {
     // Validate that we have a 4-digit number
     if (phoneNumber.length !== 4 || !/^\d{4}$/.test(phoneNumber)) {
-      Alert.alert('Invalid Number', 'Please enter a valid 4-digit user ID');
+      Alert.alert(t('invalidNumber'), t('enterValid4DigitId'));
       return;
     }
 
@@ -96,20 +98,20 @@ const CallsScreen = ({ navigation }) => {
       await makeCall(phoneNumber);
     } catch (error) {
       console.error('Error making call:', error);
-      Alert.alert('Call Failed', 'Failed to initiate call. Please try again.');
+      Alert.alert(t('callFailed'), t('failedToInitiateCall'));
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Calls" />
+      <Header title={t('calls')} />
       
       {!showDialer ? (
         <>
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Today is a great day to call</Text>
+            <Text style={styles.emptyText}>{t('greatDayToCall')}</Text>
             <Text style={styles.userIdText}>
-              Your User ID: {userId || 'Loading...'}
+              {t('yourUserId')}: {userId || t('loading')}
             </Text>
           </View>
           <TouchableOpacity style={styles.fab} onPress={toggleDialer}>
@@ -125,12 +127,13 @@ const CallsScreen = ({ navigation }) => {
               style={styles.phoneNumberText}
               value={phoneNumber}
               editable={false}
-              placeholder="Enter 4-digit ID"
+              placeholder={t('enter4DigitId')}
             />
           </View>
           
           {/* DialPad Component */}
           <DialPad
+            t={t}
             onPressDigit={handleNumberPress}
             onClose={toggleDialer}
             onCall={handleCall}

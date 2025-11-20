@@ -12,10 +12,12 @@ import { RTCView } from 'react-native-webrtc';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useWebRTC } from '../contexts/WebRTCContext';
 import Header from '../components/Header';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get('window');
 
 const CallScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const {
     callStatus,
     remoteUserId,
@@ -45,13 +47,13 @@ const CallScreen = ({ navigation }) => {
       const newRemoteStream = getRemoteStream();
       
       // Only update state if streams have actually changed
-      if (newLocalStream !== localStream) {
+      if (newLocalStream && newLocalStream !== localStream) {
         console.log('Local stream updated:', newLocalStream);
         console.log('Local stream tracks:', newLocalStream ? newLocalStream.getTracks() : 'No local stream');
         setLocalStream(newLocalStream);
       }
       
-      if (newRemoteStream !== remoteStream) {
+      if (newRemoteStream && newRemoteStream !== remoteStream) {
         console.log('Remote stream updated:', newRemoteStream);
         console.log('Remote stream tracks:', newRemoteStream ? newRemoteStream.getTracks() : 'No remote stream');
         setRemoteStream(newRemoteStream);
@@ -165,10 +167,10 @@ const CallScreen = ({ navigation }) => {
     console.log('Rendering incoming call screen');
     return (
       <View style={styles.container}>
-        <Header title="Incoming Call" />
+        <Header title={t('incomingCall')} />
         
         <View style={styles.content}>
-          <Text style={styles.incomingCallText}>Incoming Call</Text>
+          <Text style={styles.incomingCallText}>{t('incomingCall')}</Text>
           <Text style={styles.userIdText}>From: {remoteUserId}</Text>
           
           <View style={styles.actionButtons}>
@@ -197,12 +199,12 @@ const CallScreen = ({ navigation }) => {
     console.log('Rendering calling screen');
     return (
       <View style={styles.container}>
-        <Header title="Calling" />
+        <Header title={t('calling')} />
         
         <View style={styles.content}>
-          <Text style={styles.callingText}>Calling</Text>
+          <Text style={styles.callingText}>{t('calling')}</Text>
           <Text style={styles.userIdText}>{remoteUserId}</Text>
-          <Text style={styles.callingSubtext}>Connecting...</Text>
+          <Text style={styles.callingSubtext}>{t('connecting')}</Text>
           
           <View style={styles.singleActionButton}>
             <TouchableOpacity
@@ -236,8 +238,8 @@ const CallScreen = ({ navigation }) => {
           />
         ) : (
           <View style={styles.remoteVideoPlaceholder}>
-            <Text style={styles.remoteVideoText}>No video from {remoteUserId}</Text>
-            <Text style={styles.remoteVideoSubtext}>Check connection or try again</Text>
+            <Text style={styles.remoteVideoText}>{t('noVideoFrom')} {remoteUserId}</Text>
+            <Text style={styles.remoteVideoSubtext}>{t('checkConnection')}</Text>
           </View>
         )}
         
@@ -251,7 +253,7 @@ const CallScreen = ({ navigation }) => {
           />
         ) : (
           <View style={[styles.localVideo, styles.localVideoPlaceholder]}>
-            <Text style={styles.localVideoText}>No local video</Text>
+            <Text style={styles.localVideoText}>{t('noLocalVideo')}</Text>
           </View>
         )}
         
@@ -274,6 +276,9 @@ const CallScreen = ({ navigation }) => {
               size={30} 
               color={isMicOn ? "#fff" : "#ff4444"} 
             />
+            <Text style={styles.controlButtonText}>
+              {isMicOn ? t('mute') : t('unmute')}
+            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -285,6 +290,9 @@ const CallScreen = ({ navigation }) => {
               size={30} 
               color={isCameraOn ? "#fff" : "#ff4444"} 
             />
+            <Text style={styles.controlButtonText}>
+              {isCameraOn ? t('turnOffCamera') : t('turnOnCamera')}
+            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -292,6 +300,7 @@ const CallScreen = ({ navigation }) => {
             onPress={handleEndCall}
           >
             <Icon name="call-end" size={30} color="#fff" />
+            <Text style={styles.controlButtonText}>{t('endCall')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -302,15 +311,15 @@ const CallScreen = ({ navigation }) => {
   console.log('Rendering default screen, callStatus:', callStatus);
   return (
     <View style={styles.container}>
-      <Header title="Call" />
+      <Header title={t('call')} />
       <View style={styles.content}>
-        <Text style={styles.noCallText}>No active call</Text>
-        <Text style={styles.yourIdText}>Your ID: {userId}</Text>
+        <Text style={styles.noCallText}>{t('noActiveCall')}</Text>
+        <Text style={styles.yourIdText}>{t('yourId')}: {userId}</Text>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.navigate('MainTabs', { screen: 'Calls' })}
         >
-          <Text style={styles.backButtonText}>Back to Calls</Text>
+          <Text style={styles.backButtonText}>{t('backToCalls')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -361,6 +370,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     elevation: 5,
     backgroundColor: '#666',
+    zIndex: 10, // Ensure local video is always on top
   },
   localVideoPlaceholder: {
     justifyContent: 'center',
@@ -376,6 +386,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
+    zIndex: 5, // Below local video but above remote video
   },
   callInfoText: {
     color: '#fff',
@@ -396,14 +407,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     paddingHorizontal: 20,
+    zIndex: 5, // Above remote video
   },
   controlButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
     alignItems: 'center',
+  },
+  controlButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    marginTop: 5,
   },
   mutedButton: {
     backgroundColor: '#ff4444',
@@ -413,6 +425,8 @@ const styles = StyleSheet.create({
   },
   endCallButton: {
     backgroundColor: '#ff4444',
+    padding: 10,
+    borderRadius: 25,
   },
   incomingCallText: {
     fontSize: 24,
