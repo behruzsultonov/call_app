@@ -53,5 +53,10 @@
   "appearance": "Внешний вид",
   "inviteFriends": "Пригласить друзей",
   "rateApp": "Оценить приложение",
-  "privacyPolicy": "Политика конфиденциальности"
+  "privacyPolicy": "Политика конфиденциальности",
+  "theme": "Тема",
+  "lightTheme": "Светлая тема",
+  "lightThemeDesc": "Чистый и яркий интерфейс",
+  "darkTheme": "Темная тема",
+  "darkThemeDesc": "Комфортно для глаз в темноте"
 }

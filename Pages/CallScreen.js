@@ -13,11 +13,13 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useWebRTC } from '../contexts/WebRTCContext';
 import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 
 const CallScreen = ({ navigation }) => {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const {
     callStatus,
     remoteUserId,
@@ -148,14 +150,14 @@ const CallScreen = ({ navigation }) => {
     navigation.navigate('MainTabs', { screen: 'Calls' });
   };
 
-  // Toggle microphone
+  // Handle toggle microphone
   const handleToggleMicrophone = () => {
     console.log('Toggling microphone...');
     const newState = toggleMicrophone();
     setIsMicOn(newState);
   };
 
-  // Toggle camera
+  // Handle toggle camera
   const handleToggleCamera = () => {
     console.log('Toggling camera...');
     const newState = toggleCamera();
@@ -166,27 +168,27 @@ const CallScreen = ({ navigation }) => {
   if (callStatus === 'incoming') {
     console.log('Rendering incoming call screen');
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Header title={t('incomingCall')} />
         
         <View style={styles.content}>
-          <Text style={styles.incomingCallText}>{t('incomingCall')}</Text>
-          <Text style={styles.userIdText}>From: {remoteUserId}</Text>
+          <Text style={[styles.incomingCallText, { color: theme.text }]}>{t('incomingCall')}</Text>
+          <Text style={[styles.userIdText, { color: theme.text }]}>{t('from')}: {remoteUserId}</Text>
           
           <View style={styles.actionButtons}>
             <TouchableOpacity
-              style={[styles.actionButton, styles.rejectButton]}
+              style={[styles.actionButton, styles.rejectButton, { backgroundColor: theme.error }]}
               onPress={handleRejectCall}
             >
-              <Icon name="call-end" size={30} color="#fff" />
+              <Icon name="call-end" size={30} color={theme.buttonText} />
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.actionButton, styles.acceptButton]}
+              style={[styles.actionButton, styles.acceptButton, { backgroundColor: theme.success }]}
               onPress={handleAcceptCall}
               disabled={isAccepting} // Disable while accepting
             >
-              <Icon name="call" size={30} color="#fff" />
+              <Icon name="call" size={30} color={theme.buttonText} />
             </TouchableOpacity>
           </View>
         </View>
@@ -198,20 +200,20 @@ const CallScreen = ({ navigation }) => {
   if (callStatus === 'calling') {
     console.log('Rendering calling screen');
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Header title={t('calling')} />
         
         <View style={styles.content}>
-          <Text style={styles.callingText}>{t('calling')}</Text>
-          <Text style={styles.userIdText}>{remoteUserId}</Text>
-          <Text style={styles.callingSubtext}>{t('connecting')}</Text>
+          <Text style={[styles.callingText, { color: theme.text }]}>{t('calling')}</Text>
+          <Text style={[styles.userIdText, { color: theme.text }]}>{remoteUserId}</Text>
+          <Text style={[styles.callingSubtext, { color: theme.textSecondary }]}>{t('connecting')}</Text>
           
           <View style={styles.singleActionButton}>
             <TouchableOpacity
-              style={[styles.actionButton, styles.rejectButton]}
+              style={[styles.actionButton, styles.rejectButton, { backgroundColor: theme.error }]}
               onPress={handleEndCall}
             >
-              <Icon name="call-end" size={30} color="#fff" />
+              <Icon name="call-end" size={30} color={theme.buttonText} />
             </TouchableOpacity>
           </View>
         </View>
@@ -228,7 +230,7 @@ const CallScreen = ({ navigation }) => {
     console.log('Local stream URL:', localStream ? localStream.toURL() : 'No local stream');
     
     return (
-      <View style={styles.callContainer}>
+      <View style={[styles.callContainer, { backgroundColor: theme.background }]}>
         {/* Remote video stream */}
         {remoteStream ? (
           <RTCView
@@ -237,9 +239,9 @@ const CallScreen = ({ navigation }) => {
             objectFit="cover"
           />
         ) : (
-          <View style={styles.remoteVideoPlaceholder}>
-            <Text style={styles.remoteVideoText}>{t('noVideoFrom')} {remoteUserId}</Text>
-            <Text style={styles.remoteVideoSubtext}>{t('checkConnection')}</Text>
+          <View style={[styles.remoteVideoPlaceholder, { backgroundColor: theme.cardBackground }]}>
+            <Text style={[styles.remoteVideoText, { color: theme.text }]}>{t('noVideoFrom')} {remoteUserId}</Text>
+            <Text style={[styles.remoteVideoSubtext, { color: theme.textSecondary }]}>{t('checkConnection')}</Text>
           </View>
         )}
         
@@ -252,55 +254,46 @@ const CallScreen = ({ navigation }) => {
             mirror={true}
           />
         ) : (
-          <View style={[styles.localVideo, styles.localVideoPlaceholder]}>
-            <Text style={styles.localVideoText}>{t('noLocalVideo')}</Text>
+          <View style={[styles.localVideo, styles.localVideoPlaceholder, { backgroundColor: theme.cardBackground }]}>
+            <Text style={[styles.localVideoText, { color: theme.text }]}>{t('noLocalVideo')}</Text>
           </View>
         )}
         
         {/* Call info */}
         <View style={styles.callInfo}>
-          <Text style={styles.callInfoText}>{remoteUserId}</Text>
-          <Text style={styles.callDurationText}>
-            {formatCallDuration(callDuration)}
-          </Text>
+          <Text style={[styles.callInfoText, { color: theme.text }]}>{remoteUserId}</Text>
+          <Text style={[styles.callDurationText, { color: theme.text }]}>{formatCallDuration(callDuration)}</Text>
         </View>
         
         {/* Call controls */}
         <View style={styles.callControls}>
           <TouchableOpacity
-            style={[styles.controlButton, !isMicOn && styles.mutedButton]}
+            style={[styles.controlButton, !isMicOn && styles.mutedButton, { backgroundColor: !isMicOn ? theme.error : theme.cardBackground }]}
             onPress={handleToggleMicrophone}
           >
             <Icon 
               name={isMicOn ? "mic" : "mic-off"} 
               size={30} 
-              color={isMicOn ? "#fff" : "#ff4444"} 
+              color={isMicOn ? theme.text : theme.buttonText} 
             />
-            <Text style={styles.controlButtonText}>
-              {isMicOn ? t('mute') : t('unmute')}
-            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.controlButton, !isCameraOn && styles.disabledButton]}
+            style={[styles.controlButton, !isCameraOn && styles.disabledButton, { backgroundColor: !isCameraOn ? theme.error : theme.cardBackground }]}
             onPress={handleToggleCamera}
           >
             <Icon 
               name={isCameraOn ? "videocam" : "videocam-off"} 
               size={30} 
-              color={isCameraOn ? "#fff" : "#ff4444"} 
+              color={isCameraOn ? theme.text : theme.buttonText} 
             />
-            <Text style={styles.controlButtonText}>
-              {isCameraOn ? t('turnOffCamera') : t('turnOnCamera')}
-            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.controlButton, styles.endCallButton]}
+            style={[styles.controlButton, styles.endCallButton, { backgroundColor: theme.error }]}
             onPress={handleEndCall}
           >
-            <Icon name="call-end" size={30} color="#fff" />
-            <Text style={styles.controlButtonText}>{t('endCall')}</Text>
+            <Icon name="call-end" size={30} color={theme.buttonText} />
           </TouchableOpacity>
         </View>
       </View>
@@ -310,16 +303,16 @@ const CallScreen = ({ navigation }) => {
   // Default screen (no call)
   console.log('Rendering default screen, callStatus:', callStatus);
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Header title={t('call')} />
       <View style={styles.content}>
-        <Text style={styles.noCallText}>{t('noActiveCall')}</Text>
-        <Text style={styles.yourIdText}>{t('yourId')}: {userId}</Text>
+        <Text style={[styles.noCallText, { color: theme.textSecondary }]}>{t('noActiveCall')}</Text>
+        <Text style={[styles.yourIdText, { color: theme.textSecondary }]}>{t('yourId')}: {userId}</Text>
         <TouchableOpacity
-          style={styles.backButton}
+          style={[styles.backButton, { backgroundColor: theme.primary }]}
           onPress={() => navigation.navigate('MainTabs', { screen: 'Calls' })}
         >
-          <Text style={styles.backButtonText}>{t('backToCalls')}</Text>
+          <Text style={[styles.backButtonText, { color: theme.buttonText }]}>{t('backToCalls')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -411,9 +404,12 @@ const styles = StyleSheet.create({
   },
   controlButton: {
     alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 20,
   },
   controlButtonText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 12,
     marginTop: 5,
   },
@@ -442,6 +438,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginTop: 10,
+    marginBottom: 30,
   },
   userIdText: {
     fontSize: 20,

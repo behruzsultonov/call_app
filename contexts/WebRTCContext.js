@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import WebRTCService from '../services/WebRTCService';
+import InCallManager from 'react-native-incall-manager';
 
 // Create the context
 const WebRTCContext = createContext();
@@ -61,6 +62,9 @@ export const WebRTCProvider = ({ children }) => {
     setCallStatus('incoming');
     setRemoteUserId(callerId);
     webRTCServiceRef.current.currentOffer = offer;
+    
+    // Start ringing for incoming call
+    InCallManager.startRingtone('_DEFAULT_', 'default');
   };
 
   // Handle call answered
@@ -93,6 +97,9 @@ export const WebRTCProvider = ({ children }) => {
     setRemoteStream(null); // Clear remote stream
     setLocalStream(null); // Clear local stream
     
+    // Stop ringing when call ends
+    InCallManager.stopRingtone();
+    
     // Reset to idle after a short delay
     setTimeout(() => {
       setCallStatus('idle');
@@ -107,6 +114,9 @@ export const WebRTCProvider = ({ children }) => {
     setRemoteUserId('');
     setRemoteStream(null); // Clear remote stream
     setLocalStream(null); // Clear local stream
+    
+    // Stop ringing on connection error
+    InCallManager.stopRingtone();
   };
 
   // Make a call
@@ -162,6 +172,9 @@ export const WebRTCProvider = ({ children }) => {
     // In a real implementation, you would send a reject signal
     webRTCServiceRef.current.endCall();
     handleCallEnded();
+    
+    // Stop ringing when call is rejected
+    InCallManager.stopRingtone();
   };
 
   // End current call

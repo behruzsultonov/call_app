@@ -10,6 +10,7 @@ import {
 import { RTCView } from 'react-native-webrtc';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import WebRTCService from '../services/WebRTCService';
+import InCallManager from 'react-native-incall-manager';
 
 const CallManager = ({ children }) => {
   const [userId, setUserId] = useState('');
@@ -129,6 +130,9 @@ const CallManager = ({ children }) => {
   // Accept incoming call
   const acceptCall = async () => {
     try {
+      // Stop ringing when accepting the call
+      InCallManager.stopRingtone();
+      
       setShowIncomingCall(false);
       setShowCallScreen(true);
       setCallStatus('connecting');
@@ -151,6 +155,9 @@ const CallManager = ({ children }) => {
 
   // Reject incoming call
   const rejectCall = () => {
+    // Stop ringing when rejecting the call
+    InCallManager.stopRingtone();
+    
     // In a real implementation, you would send a reject signal
     setShowIncomingCall(false);
     webRTCServiceRef.current.endCall();

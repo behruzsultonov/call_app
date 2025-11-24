@@ -376,8 +376,11 @@ class WebRTCService {
       });
 
       this.isInCall = true;
-      InCallManager.start(); // Simplified InCallManager usage
+      
+      // Start ringing sound for outgoing call
+      InCallManager.start({media: 'audio'});
       InCallManager.setKeepScreenOn(true);
+      InCallManager.setForceSpeakerphoneOn(false);
     } catch (error) {
       console.error('Error making call:', error);
       if (this.onConnectionError) {
@@ -399,6 +402,9 @@ class WebRTCService {
       this.isAnsweringCall = true;
       this.isCaller = false;
       this.currentCallTarget = callerId;
+      
+      // Stop ringing when answering the call
+      InCallManager.stopRingtone();
       
       // Ensure we have a peer connection
       if (!this.peerConnection) {
@@ -446,8 +452,9 @@ class WebRTCService {
       });
 
       this.isInCall = true;
-      InCallManager.start(); // Simplified InCallManager usage
+      InCallManager.start({media: 'audio'}); // Simplified InCallManager usage
       InCallManager.setKeepScreenOn(true);
+      InCallManager.setForceSpeakerphoneOn(false);
     } catch (error) {
       console.error('Error answering call:', error);
       this.isAnsweringCall = false; // Reset flag on error
@@ -491,6 +498,7 @@ class WebRTCService {
     this.remoteStream = null; // Clear remote stream
     this.pendingICECandidates = []; // Clear pending ICE candidates
     
+    // Stop all InCallManager sounds
     InCallManager.stop();
 
     if (this.onCallEnded) {

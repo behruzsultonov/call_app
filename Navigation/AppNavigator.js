@@ -6,6 +6,7 @@ import OtpVerifyScreen from '../Pages/OtpVerifyScreen';
 import BottomTabs from './BottomTabs';
 import CallScreen from '../Pages/CallScreen';
 import LanguageSelectionScreen from '../Pages/LanguageSelectionScreen';
+import ThemeSelectionScreen from '../Pages/ThemeSelectionScreen';
 import { WebRTCProvider } from '../contexts/WebRTCContext';
 
 const Stack = createNativeStackNavigator();
@@ -20,6 +21,7 @@ export default function AppNavigator() {
           <Stack.Screen name="MainTabs" component={BottomTabs} />
           <Stack.Screen name="Call" component={CallScreen} />
           <Stack.Screen name="LanguageSelection" component={LanguageSelectionScreen} />
+          <Stack.Screen name="ThemeSelection" component={ThemeSelectionScreen} />
         </Stack.Navigator>
       </WebRTCProvider>
     </NavigationContainer>

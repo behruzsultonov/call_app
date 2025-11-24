@@ -53,5 +53,10 @@
   "appearance": "Намуди зоҳирӣ",
   "inviteFriends": "Дӯстонро даъват кунед",
   "rateApp": "Ба барнома баҳо диҳед",
-  "privacyPolicy": "Сиёсати махфият"
+  "privacyPolicy": "Сиёсати махфият",
+  "theme": "Мавзӯъ",
+  "lightTheme": "Мавзӯи равшан",
+  "lightThemeDesc": "Интерфейси тоза ва равшан",
+  "darkTheme": "Мавзӯи торик",
+  "darkThemeDesc": "Барои чашмон дар торикӣ фоидаовар"
 }

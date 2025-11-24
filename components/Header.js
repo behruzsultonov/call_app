@@ -1,21 +1,28 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Header = ({ title, showSearch = false, onSearchPress, onBack }) => {
+  const { theme } = useTheme();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { 
+      backgroundColor: theme.headerBackground,
+      borderBottomColor: theme.border,
+      shadowColor: theme.text
+    }]}>
       {onBack ? (
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Icon name="arrow-back" size={24} color="#D88A22" />
+          <Icon name="arrow-back" size={24} color={theme.primary} />
         </TouchableOpacity>
       ) : (
         <View style={styles.placeholder} />
       )}
-      <Text style={styles.title}>{title}</Text>
+      <Text style={[styles.title, { color: theme.primary }]}>{title}</Text>
       {showSearch ? (
         <TouchableOpacity onPress={onSearchPress}>
-          <Icon name="search" size={24} color="#D88A22" />
+          <Icon name="search" size={24} color={theme.primary} />
         </TouchableOpacity>
       ) : (
         <View style={styles.placeholder} />

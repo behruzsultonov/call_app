@@ -10,9 +10,11 @@ import {
 } from 'react-native';
 import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function OtpVerifyScreen({ navigation }) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const [code, setCode] = useState(['', '', '', '']);
   const inputs = useRef([]);
   const [timer, setTimer] = useState(60);
@@ -54,7 +56,7 @@ export default function OtpVerifyScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Header title={t('authorization')} />
       
       {/* Icon */}
@@ -63,10 +65,10 @@ export default function OtpVerifyScreen({ navigation }) {
           source={{
             uri: 'https://cdn-icons-png.flaticon.com/512/15/15874.png',
           }}
-          style={styles.icon}
+          style={[styles.icon, { tintColor: theme.text }]}
         />
       </View>
-      <Text style={styles.subText}>{t('enterCode')}</Text>
+      <Text style={[styles.subText, { color: theme.textSecondary }]}>{t('enterCode')}</Text>
 
       {/* OTP Input */}
       <View style={styles.otpRow}>
@@ -83,24 +85,22 @@ export default function OtpVerifyScreen({ navigation }) {
               styles.otpBox,
               digit ? styles.otpBoxFilled : null,
               index === code.findIndex((x) => x === '') && styles.activeBorder,
+              { 
+                borderColor: theme.border, 
+                color: theme.text,
+                backgroundColor: theme.inputBackground
+              }
             ]}
           />
         ))}
       </View>
 
       {/* Timer */}
-      <Text style={styles.timer}>
+      <Text style={[styles.timer, { color: theme.textSecondary }]}>
         {timer > 0
           ? `${timer} ${t('secondsToResendCode')}`
           : t('resendCode')}
       </Text>
-
-      {/* Verify button - REMOVED */}
-      {/* 
-      <TouchableOpacity style={styles.button} onPress={handleVerify}>
-        <Text style={styles.buttonText}>{t('verify')}</Text>
-      </TouchableOpacity>
-      */}
     </SafeAreaView>
   );
 }
@@ -152,6 +152,7 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     textAlign: 'center',
     fontSize: 24,
+    backgroundColor: '#f5f5f5'
   },
 
   activeBorder: {

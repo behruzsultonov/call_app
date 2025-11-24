@@ -3,10 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import Header from '../components/Header';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function LanguageSelectionScreen({ navigation }) {
   const { language, changeLanguage } = useLanguage();
   const { t } = useTranslation();
+  const { theme } = useTheme();
 
   const languages = [
     { code: 'en', name: t('english'), localName: 'English' },
@@ -20,7 +22,7 @@ export default function LanguageSelectionScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Header title={t('language')} onBack={() => navigation.goBack()} />
       
       <ScrollView style={styles.content}>
@@ -29,17 +31,21 @@ export default function LanguageSelectionScreen({ navigation }) {
             key={lang.code}
             style={[
               styles.languageItem,
-              language === lang.code && styles.selectedLanguage
+              { 
+                backgroundColor: theme.cardBackground,
+                borderBottomColor: theme.border
+              },
+              language === lang.code && { backgroundColor: theme.primary + '20' } // 20 is 12% opacity
             ]}
             onPress={() => handleLanguageChange(lang.code)}
           >
             <View style={styles.languageInfo}>
-              <Text style={styles.languageName}>{lang.name}</Text>
-              <Text style={styles.languageLocalName}>{lang.localName}</Text>
+              <Text style={[styles.languageName, { color: theme.text }]}>{lang.name}</Text>
+              <Text style={[styles.languageLocalName, { color: theme.textSecondary }]}>{lang.localName}</Text>
             </View>
             {language === lang.code && (
-              <View style={styles.checkmark}>
-                <Text style={styles.checkmarkText}>✓</Text>
+              <View style={[styles.checkmark, { backgroundColor: theme.primary }]}>
+                <Text style={[styles.checkmarkText, { color: theme.buttonText }]}>✓</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -66,9 +72,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-  },
-  selectedLanguage: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#fff',
   },
   languageInfo: {
     flex: 1,
@@ -76,6 +80,7 @@ const styles = StyleSheet.create({
   languageName: {
     fontSize: 18,
     fontWeight: '500',
+    color: '#000',
   },
   languageLocalName: {
     fontSize: 14,

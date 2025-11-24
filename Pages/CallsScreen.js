@@ -4,9 +4,10 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
 import { useWebRTC } from '../contexts/WebRTCContext';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
 
 // DialPad Component
-const DialPad = ({ onPressDigit, onClose, onCall, onDelete, t }) => {
+const DialPad = ({ onPressDigit, onClose, onCall, onDelete, t, theme }) => {
   const digits = [
     ["1", "2", "3"],
     ["4", "5", "6"],
@@ -15,7 +16,7 @@ const DialPad = ({ onPressDigit, onClose, onCall, onDelete, t }) => {
   ];
 
   return (
-    <View style={styles.dialPadContainer}>
+    <View style={[styles.dialPadContainer, { backgroundColor: theme.cardBackground }]}>
       {/* DIGITS GRID */}
       {digits.map((row, i) => (
         <View key={i} style={styles.row}>
@@ -23,9 +24,9 @@ const DialPad = ({ onPressDigit, onClose, onCall, onDelete, t }) => {
             <TouchableOpacity
               key={d}
               onPress={() => onPressDigit && onPressDigit(d)}
-              style={styles.key}
+              style={[styles.key, { backgroundColor: theme.inputBackground }]}
             >
-              <Text style={styles.keyText}>{d}</Text>
+              <Text style={[styles.keyText, { color: theme.text }]}>{d}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -36,17 +37,17 @@ const DialPad = ({ onPressDigit, onClose, onCall, onDelete, t }) => {
         
         {/* CLOSE */}
         <TouchableOpacity onPress={onClose} style={styles.bottomButtonLeft}>
-          <Text style={styles.closeText}>{t('close')}</Text>
+          <Text style={[styles.closeText, { color: theme.primary }]}>{t('close')}</Text>
         </TouchableOpacity>
 
         {/* CALL BUTTON */}
-        <TouchableOpacity onPress={onCall} style={styles.callButton}>
-          <Icon name="call" size={26} color="#fff" />
+        <TouchableOpacity onPress={onCall} style={[styles.callButton, { backgroundColor: theme.primary }]}>
+          <Icon name="call" size={26} color={theme.buttonText} />
         </TouchableOpacity>
 
         {/* DELETE BUTTON */}
         <TouchableOpacity onPress={onDelete} style={styles.deleteButton}>
-          <Icon name="backspace" size={24} color="#a3a3a3" />
+          <Icon name="backspace" size={24} color={theme.textSecondary} />
         </TouchableOpacity>
 
       </View>
@@ -56,6 +57,7 @@ const DialPad = ({ onPressDigit, onClose, onCall, onDelete, t }) => {
 
 const CallsScreen = ({ navigation }) => {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const [showDialer, setShowDialer] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   
@@ -103,37 +105,39 @@ const CallsScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Header title={t('calls')} />
       
       {!showDialer ? (
         <>
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>{t('greatDayToCall')}</Text>
-            <Text style={styles.userIdText}>
+          <View style={[styles.emptyContainer, { backgroundColor: theme.cardBackground }]}>
+            <Text style={[styles.emptyText, { color: theme.text }]}>{t('greatDayToCall')}</Text>
+            <Text style={[styles.userIdText, { color: theme.primary }]}>
               {t('yourUserId')}: {userId || t('loading')}
             </Text>
           </View>
-          <TouchableOpacity style={styles.fab} onPress={toggleDialer}>
-            <Icon name="dialpad" size={24} color="#fff" />
+          <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary }]} onPress={toggleDialer}>
+            <Icon name="dialpad" size={24} color={theme.buttonText} />
           </TouchableOpacity>
         </>
       ) : (
         // Dialer UI with the new DialPad component
-        <View style={styles.dialerContainer}>
+        <View style={[styles.dialerContainer, { backgroundColor: theme.background }]}>
           {/* Phone number display */}
-          <View style={styles.phoneNumberContainer}>
+          <View style={[styles.phoneNumberContainer, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
             <TextInput
-              style={styles.phoneNumberText}
+              style={[styles.phoneNumberText, { color: theme.text }]}
               value={phoneNumber}
               editable={false}
               placeholder={t('enter4DigitId')}
+              placeholderTextColor={theme.placeholder}
             />
           </View>
           
           {/* DialPad Component */}
           <DialPad
             t={t}
+            theme={theme}
             onPressDigit={handleNumberPress}
             onClose={toggleDialer}
             onCall={handleCall}
@@ -149,8 +153,16 @@ export default CallsScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { fontSize: 16, color: 'gray' },
+  emptyContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: '#fff'
+  },
+  emptyText: { 
+    fontSize: 16, 
+    color: 'gray' 
+  },
   userIdText: { 
     fontSize: 14, 
     color: '#D88A22', 

@@ -53,5 +53,10 @@
   "appearance": "Appearance",
   "inviteFriends": "Invite Friends",
   "rateApp": "Rate App",
-  "privacyPolicy": "Privacy Policy"
+  "privacyPolicy": "Privacy Policy",
+  "theme": "Theme",
+  "lightTheme": "Light Theme",
+  "lightThemeDesc": "Clean and bright interface",
+  "darkTheme": "Dark Theme",
+  "darkThemeDesc": "Easy on the eyes in low light"
 }

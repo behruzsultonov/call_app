@@ -10,9 +10,11 @@ import {
 import CountryPicker from 'react-native-country-picker-modal';
 import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function PhoneAuthScreen({ navigation }) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const [countryCode, setCountryCode] = useState('TJ');
   const [callingCode, setCallingCode] = useState('992');
   const [countryName, setCountryName] = useState('Tajikistan'); // Added state for country name
@@ -25,18 +27,18 @@ export default function PhoneAuthScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Header title={t('authorization')} />
       
-      <View style={styles.content}>
+      <View style={[styles.content, { backgroundColor: theme.background }]}>
         {/* Title */}
-        <Text style={styles.title}>{t('enterPhoneNumber')}</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: theme.text }]}>{t('enterPhoneNumber')}</Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           {t('enterPhoneNumber')}
         </Text>
 
         {/* Country Picker */}
-        <View style={styles.countryRow}>
+        <View style={[styles.countryRow, { borderBottomColor: theme.border, borderTopColor: theme.border }]}>
           <CountryPicker
             withFlag
             withFilter
@@ -49,31 +51,32 @@ export default function PhoneAuthScreen({ navigation }) {
             }}
             containerButtonStyle={styles.countryPicker}
           />
-          <Text style={styles.countryName}>{countryName}</Text> {/* Use dynamic country name */}
+          <Text style={[styles.countryName, { color: theme.text }]}>{countryName}</Text> {/* Use dynamic country name */}
         </View>
 
         {/* Phone Input */}
-        <View style={styles.phoneRow}>
-          <Text style={styles.prefix}>+{callingCode}</Text>
+        <View style={[styles.phoneRow, { borderBottomColor: theme.border, borderTopColor: theme.border }]}>
+          <Text style={[styles.prefix, { color: theme.text }]}>+{callingCode}</Text>
           <TextInput
             placeholder={t('phoneNumber')}
             keyboardType="phone-pad"
-            style={styles.input}
+            style={[styles.input, { color: theme.text, backgroundColor: theme.inputBackground }]}
             value={phone}
             onChangeText={setPhone}
+            placeholderTextColor={theme.placeholder}
           />
         </View>
       </View>
 
-      <View style={styles.bottomContainer}>
+      <View style={[styles.bottomContainer, { backgroundColor: theme.background }]}>
         {/* Continue button */}
-        <TouchableOpacity style={styles.button} onPress={handleContinue}>
-          <Text style={styles.buttonText}>{t('continue')}</Text>
+        <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={handleContinue}>
+          <Text style={[styles.buttonText, { color: theme.buttonText }]}>{t('continue')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.terms}>
+        <Text style={[styles.terms, { color: theme.textSecondary }]}>
           {t('enterPhoneNumber')}{' '}
-          <Text style={styles.link}>{t('phoneNumber')}</Text>
+          <Text style={[styles.link, { color: theme.primary }]}>{t('phoneNumber')}</Text>
         </Text>
       </View>
     </SafeAreaView>
@@ -89,12 +92,14 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingTop: 20,
+    backgroundColor: '#fff'
   },
 
   bottomContainer: {
     paddingBottom: 20,
     // Add these properties to push the container to the bottom
     marginTop: 'auto',
+    backgroundColor: '#fff'
   },
 
   title: {
@@ -102,6 +107,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 20,
+    color: '#000'
   },
 
   subtitle: {
@@ -145,12 +151,14 @@ const styles = StyleSheet.create({
   countryName: {
     marginLeft: 10,
     fontSize: 16,
+    color: '#000'
   },
 
   prefix: {
     fontSize: 18,
     marginRight: 10,
     lineHeight: 40,
+    color: '#000'
   },
 
   input: {
@@ -161,6 +169,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: 'center',
     paddingTop: 2, // Slight adjustment to move text higher
+    backgroundColor: '#f5f5f5',
+    borderRadius: 5,
+    paddingHorizontal: 10,
   },
 
   button: {

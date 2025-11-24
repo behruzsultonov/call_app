@@ -9,24 +9,26 @@ import {
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Header from "../components/Header";
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function ContactsScreen() {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Header title={t('contacts')} showSearch={true} />
 
       {/* EMPTY ILLUSTRATION */}
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>
+      <View style={[styles.emptyContainer, { backgroundColor: theme.cardBackground }]}>
+        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
           {t('emptyContactList')}
         </Text>
       </View>
 
       {/* FLOATING ADD BUTTON */}
-      <TouchableOpacity style={styles.fab}>
-        <Icon name="add" size={30} color="#fff" />
+      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary }]}>
+        <Icon name="add" size={30} color={theme.buttonText} />
       </TouchableOpacity>
     </View>
   );
@@ -41,6 +43,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
+    backgroundColor: '#fff'
   },
   emptyImage: {
     width: 150,

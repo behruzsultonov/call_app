@@ -9,13 +9,16 @@ import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './Navigation/AppNavigator';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import './localization/i18n';
 
 function App() {
   return (
     <SafeAreaProvider>
       <LanguageProvider>
-        <AppNavigator />
+        <ThemeProvider>
+          <AppNavigator />
+        </ThemeProvider>
       </LanguageProvider>
     </SafeAreaProvider>
   );

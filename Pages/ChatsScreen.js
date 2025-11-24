@@ -10,9 +10,11 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function ChatsScreen() {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   
   const chats = [
     {
@@ -39,21 +41,29 @@ export default function ChatsScreen() {
   ];
 
   const renderChatItem = ({ item }) => (
-    <TouchableOpacity style={styles.chatItem}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+    <TouchableOpacity 
+      style={[
+        styles.chatItem,
+        { 
+          borderBottomColor: theme.border,
+          backgroundColor: theme.cardBackground
+        }
+      ]}
+    >
+      <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+        <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.name.charAt(0)}</Text>
       </View>
       <View style={styles.chatInfo}>
-        <Text style={styles.chatName}>{item.name}</Text>
-        <Text style={styles.chatMessage} numberOfLines={1}>
+        <Text style={[styles.chatName, { color: theme.text }]}>{item.name}</Text>
+        <Text style={[styles.chatMessage, { color: theme.textSecondary }]} numberOfLines={1}>
           {item.message}
         </Text>
       </View>
       <View style={styles.chatMeta}>
-        <Text style={styles.chatTime}>{item.time}</Text>
+        <Text style={[styles.chatTime, { color: theme.textSecondary }]}>{item.time}</Text>
         {item.unread > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadText}>{item.unread}</Text>
+          <View style={[styles.unreadBadge, { backgroundColor: theme.primary }]}>
+            <Text style={[styles.unreadText, { color: theme.buttonText }]}>{item.unread}</Text>
           </View>
         )}
       </View>
@@ -61,7 +71,7 @@ export default function ChatsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Header title={t('chats')} showSearch={true} />
       
       <FlatList
@@ -71,8 +81,8 @@ export default function ChatsScreen() {
         contentContainerStyle={styles.chatList}
       />
       
-      <TouchableOpacity style={styles.fab}>
-        <Icon name="chat" size={24} color="#fff" />
+      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary }]}>
+        <Icon name="chat" size={24} color={theme.buttonText} />
       </TouchableOpacity>
     </SafeAreaView>
   );

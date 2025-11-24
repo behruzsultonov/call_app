@@ -3,73 +3,82 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "rea
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Header from "../components/Header";
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function ProfileScreen({ navigation }) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   
   const handleLanguagePress = () => {
     navigation.navigate('LanguageSelection');
   };
 
-  return (
-    <ScrollView style={styles.container}>
-      <Header title={t('profile')} />
+  const handleThemePress = () => {
+    navigation.navigate('ThemeSelection');
+  };
 
+  return (
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
+      <Header title={t('profile')} />
+      
       {/* User Card and Status - now in one block */}
-      <View style={styles.block}>
-        <View style={styles.userCard}>
-          <View style={styles.avatar}>
-            <Icon name="person" size={70} color="#9e9e9e" />
-            <View style={styles.onlineDot} />
+      <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+        <View style={[styles.userCard, { backgroundColor: theme.cardBackground }]}>
+          <View style={[styles.avatar, { backgroundColor: theme.inputBackground }]}>
+            <Icon name="person" size={70} color={theme.text} />
+            <View style={[styles.onlineDot, { backgroundColor: theme.success }]} />
           </View>
 
           <View>
-            <Text style={styles.userName}>CallApp</Text>
-            <Text style={styles.userPhone}>+992 98 704 6624</Text>
+            <Text style={[styles.userName, { color: theme.text }]}>CallApp</Text>
+            <Text style={[styles.userPhone, { color: theme.textSecondary }]}>+992 98 704 6624</Text>
           </View>
         </View>
         
         {/* Separator line */}
-        <View style={styles.separator} />
+        <View style={[styles.separator, { borderBottomColor: theme.border }]} />
         
         {/* Status Button */}
-        <TouchableOpacity style={styles.statusButton}>
-          <Icon name="mood" size={22} color="#f4a100" />
-          <Text style={styles.statusText}>{t('setCustomStatus')}</Text>
+        <TouchableOpacity style={[styles.statusButton, { backgroundColor: theme.inputBackground }]}>
+          <Icon name="mood" size={22} color={theme.warning} />
+          <Text style={[styles.statusText, { color: theme.warning }]}>{t('setCustomStatus')}</Text>
         </TouchableOpacity>
       </View>
 
        {/* Category Blocks */}
-       <View style={styles.block}>
-        <MenuItem icon="sim-card" color="#f4a100" label={t('tariffPlans')} />
-        <MenuItem icon="bookmark-border" color="#1976d2" label={t('savedMessages')} />
+       <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+        <MenuItem icon="sim-card" color={theme.primary} label={t('tariffPlans')} theme={theme} />
+        <MenuItem icon="bookmark-border" color={theme.primary} label={t('savedMessages')} theme={theme} />
       </View>
 
-      <View style={styles.block}>
-        <MenuItem icon="notifications-none" color="#1e88e5" label={t('notifications')} />
-        <MenuItem icon="lock-outline" color="#6d4c41" label={t('privacyAndSecurity')} />
-        <MenuItem icon="call" color="#8e24aa" label={t('callSettings')} />
-        <MenuItem icon="storage" color="#43a047" label={t('dataAndStorage')} />
-        <MenuItem icon="palette" color="#e53935" label={t('appearance')} />
-        <MenuItem icon="language" color="#8e24aa" label={t('language')} onPress={handleLanguagePress} />
+      <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+        <MenuItem icon="notifications-none" color={theme.primary} label={t('notifications')} theme={theme} />
+        <MenuItem icon="lock-outline" color={theme.primary} label={t('privacyAndSecurity')} theme={theme} />
+        <MenuItem icon="call" color={theme.primary} label={t('callSettings')} theme={theme} />
+        <MenuItem icon="storage" color={theme.primary} label={t('dataAndStorage')} theme={theme} />
+        <MenuItem icon="palette" color={theme.primary} label={t('appearance')} theme={theme} onPress={handleThemePress} />
+        <MenuItem icon="language" color={theme.primary} label={t('language')} theme={theme} onPress={handleLanguagePress} />
       </View>
 
       {/* New Block: Invite Friends, Rate App, Privacy Policy */}
-      <View style={[styles.block, styles.lastBlock]}>
-        <MenuItem icon="person-add" color="#1976d2" label={t('inviteFriends')} />
-        <MenuItem icon="star-border" color="#f4a100" label={t('rateApp')} />
-        <MenuItem icon="description" color="#43a047" label={t('privacyPolicy')} />
+      <View style={[styles.block, styles.lastBlock, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+        <MenuItem icon="person-add" color={theme.primary} label={t('inviteFriends')} theme={theme} />
+        <MenuItem icon="star-border" color={theme.primary} label={t('rateApp')} theme={theme} />
+        <MenuItem icon="description" color={theme.primary} label={t('privacyPolicy')} theme={theme} />
       </View>
     </ScrollView>
   );
 }
 
-function MenuItem({ icon, label, color, onPress }) {
+function MenuItem({ icon, label, color, onPress, theme }) {
   return (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+    <TouchableOpacity 
+      style={[styles.menuItem, { borderBottomColor: theme.border }]} 
+      onPress={onPress}
+    >
       <Icon name={icon} size={24} color={color} />
-      <Text style={styles.menuText}>{label}</Text>
-      <Icon name="chevron-right" size={20} color="#bdbdbd" style={{ marginLeft: "auto" }} />
+      <Text style={[styles.menuText, { color: theme.text }]}>{label}</Text>
+      <Icon name="chevron-right" size={20} color={theme.textSecondary} style={{ marginLeft: "auto" }} />
     </TouchableOpacity>
   );
 }
