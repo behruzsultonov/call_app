@@ -12,7 +12,7 @@ import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 
-export default function ChatsScreen() {
+export default function ChatsScreen({ navigation }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   
@@ -20,6 +20,7 @@ export default function ChatsScreen() {
     {
       id: '1',
       name: 'John Doe',
+      phone: '+1234567890',
       message: 'Hey, how are you doing?',
       time: '10:30 AM',
       unread: 2,
@@ -27,6 +28,7 @@ export default function ChatsScreen() {
     {
       id: '2',
       name: 'Jane Smith',
+      phone: '+0987654321',
       message: 'See you tomorrow!',
       time: '9:15 AM',
       unread: 0,
@@ -34,6 +36,7 @@ export default function ChatsScreen() {
     {
       id: '3',
       name: 'Bob Johnson',
+      phone: '+1122334455',
       message: 'Thanks for your help',
       time: 'Yesterday',
       unread: 0,
@@ -49,6 +52,9 @@ export default function ChatsScreen() {
           backgroundColor: theme.cardBackground
         }
       ]}
+      onPress={() => navigation.navigate('Chat', { 
+        chat: { id: item.id, name: item.name }
+      })}
     >
       <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
         <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.name.charAt(0)}</Text>

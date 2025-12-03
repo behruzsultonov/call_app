@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, TextInput, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
 import { useWebRTC } from '../contexts/WebRTCContext';
@@ -62,6 +62,96 @@ const CallsScreen = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   
   const { userId, makeCall, callStatus } = useWebRTC();
+  
+  // Call data
+  const calls = [
+    {
+      id: "1",
+      number: "992987654321",
+      type: "missed",
+      time: "20:36",
+    },
+    {
+      id: "2",
+      number: "992987654321",
+      type: "missed",
+      time: "20:36",
+    },
+    {
+      id: "3",
+      number: "985580777",
+      type: "outgoing",
+      time: "20:34",
+    },
+    {
+      id: "4",
+      number: "985580777",
+      type: "incoming",
+      time: "20:33",
+    },
+    {
+      id: "5",
+      number: "985580777",
+      type: "outgoing",
+      time: "20:33",
+    },
+  ];
+  
+  // Цвета статусов
+  const statusColors = {
+    missed: "#d9534f",
+    outgoing: "#d88a22",
+    incoming: "#28a745",
+  };
+  
+  // Название статусов
+  const statusLabels = {
+    missed: "Пропущенный звонок",
+    outgoing: "Исходящий звонок",
+    incoming: "Входящий звонок",
+  };
+  
+  // Иконки статусов
+  const statusIcons = {
+    missed: "call-missed",
+    outgoing: "call-made",
+    incoming: "call-received",
+  };
+  
+  const renderCallItem = ({ item }) => (
+    <TouchableOpacity 
+      style={[styles.callRow, { borderBottomColor: theme.border }]}
+      onPress={() => navigation.navigate('CallInfo', { phoneNumber: item.number })}
+    >
+      {/* Аватар */}
+      <View style={styles.avatar}>
+        <Icon name="person" size={34} color={theme.textSecondary} />
+      </View>
+
+      {/* Контент */}
+      <View style={styles.callContent}>
+        <Text style={[styles.phone, { color: theme.text }]}>{item.number}</Text>
+
+        <View style={styles.statusRow}>
+          <Icon
+            name={statusIcons[item.type]}
+            size={18}
+            color={statusColors[item.type]}
+          />
+          <Text style={[styles.statusText, { color: statusColors[item.type] }]}>
+            {statusLabels[item.type]}
+          </Text>
+        </View>
+
+        <Text style={[styles.time, { color: theme.textSecondary }]}>{item.time}</Text>
+      </View>
+
+      {/* Кнопка звонка */}
+      <TouchableOpacity style={[styles.listCallButton, { backgroundColor: theme.primary }]}>
+        <Icon name="call" size={20} color={theme.buttonText} />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
 
   // Navigate to call screen when call is initiated
   useEffect(() => {
@@ -110,12 +200,22 @@ const CallsScreen = ({ navigation }) => {
       
       {!showDialer ? (
         <>
-          <View style={[styles.emptyContainer, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.emptyText, { color: theme.text }]}>{t('greatDayToCall')}</Text>
-            <Text style={[styles.userIdText, { color: theme.primary }]}>
-              {t('yourUserId')}: {userId || t('loading')}
+          {/* Your ID */}
+          <View style={[styles.idContainer, { backgroundColor: theme.cardBackground }]}>
+            <Text style={[styles.idLabel, { color: theme.textSecondary }]}>{t('yourId')}:</Text>
+            <Text style={[styles.idValue, { color: theme.primary }]}>
+              {userId ? String(userId).padStart(4, '0') : t('loading')}
             </Text>
           </View>
+
+          {/* LIST */}
+          <FlatList
+            data={calls}
+            keyExtractor={(item) => item.id}
+            renderItem={renderCallItem}
+            contentContainerStyle={{ paddingBottom: 100 }}
+          />
+
           <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary }]} onPress={toggleDialer}>
             <Icon name="dialpad" size={24} color={theme.buttonText} />
           </TouchableOpacity>
@@ -153,22 +253,96 @@ export default CallsScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  emptyContainer: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center',
+  
+  // List Header
+  listHeader: {
+    height: 60,
+    backgroundColor: '#fff',
+    justifyContent: "center",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  headerTitle: {
+    fontSize: 20,
+    color: "#d88a22",
+    fontWeight: "bold",
+  },
+  
+  // User ID Container
+  idContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     backgroundColor: '#fff'
   },
-  emptyText: { 
-    fontSize: 16, 
-    color: 'gray' 
+  idLabel: {
+    fontSize: 16,
+    color: "#777",
   },
-  userIdText: { 
-    fontSize: 14, 
-    color: '#D88A22', 
-    marginTop: 20,
-    fontWeight: 'bold'
+  idValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#d88a22",
   },
+  
+  // Call Row Styles
+  callRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 15,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f1f1",
+  },
+
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#e5e5e5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+
+  callContent: {
+    flex: 1,
+  },
+
+  phone: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+  },
+
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+
+  statusText: {
+    marginLeft: 4,
+    fontSize: 14,
+  },
+
+  time: {
+    fontSize: 13,
+    color: "#555",
+    marginTop: 2,
+  },
+
+  listCallButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#d88a22",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
   fab: {
     position: 'absolute',
     bottom: 20,

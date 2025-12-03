@@ -200,23 +200,72 @@ const CallScreen = ({ navigation }) => {
   if (callStatus === 'calling') {
     console.log('Rendering calling screen');
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <Header title={t('calling')} />
-        
-        <View style={styles.content}>
-          <Text style={[styles.callingText, { color: theme.text }]}>{t('calling')}</Text>
-          <Text style={[styles.userIdText, { color: theme.text }]}>{remoteUserId}</Text>
-          <Text style={[styles.callingSubtext, { color: theme.textSecondary }]}>{t('connecting')}</Text>
-          
-          <View style={styles.singleActionButton}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.rejectButton, { backgroundColor: theme.error }]}
-              onPress={handleEndCall}
+      <View style={styles.container}>
+        {/* Top panel - absolute top full width orange block */}
+        <View style={styles.topPanelFull}>
+          <Text style={styles.number}>{remoteUserId}</Text>
+          <View style={styles.line} />
+          <Text style={styles.subText}>{t('calling')}...</Text>
+        </View>
+
+        {/* Call options */}
+        <View style={styles.buttonsGrid}>
+          <View style={styles.option}>
+            <TouchableOpacity 
+              style={styles.iconWrapper}
+              onPress={handleToggleMicrophone}
             >
-              <Icon name="call-end" size={30} color={theme.buttonText} />
+              <Icon name={isMicOn ? "mic" : "mic-off"} size={32} color="#000" />
             </TouchableOpacity>
+            <Text style={styles.label}>{t('sound')}</Text>
+          </View>
+
+          <View style={styles.option}>
+            <TouchableOpacity 
+              style={styles.iconWrapper}
+              onPress={handleToggleCamera}
+            >
+              <Icon name={isCameraOn ? "videocam" : "videocam-off"} size={32} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.label}>{t('video')}</Text>
+          </View>
+
+          <View style={styles.option}>
+            <View style={styles.iconWrapper}>
+              <Icon name="volume-up" size={32} color="#000" />
+            </View>
+            <Text style={styles.label}>{t('speaker')}</Text>
+          </View>
+
+          <View style={styles.option}>
+            <View style={styles.iconWrapper}>
+              <Icon name="sync" size={32} color="#000" />
+            </View>
+            <Text style={styles.label}>{t('transfer')}</Text>
+          </View>
+
+          <View style={styles.option}>
+            <View style={styles.iconWrapper}>
+              <Icon name="dialpad" size={32} color="#000" />
+            </View>
+            <Text style={styles.label}>{t('keypad')}</Text>
+          </View>
+
+          <View style={styles.option}>
+            <View style={styles.iconWrapper}>
+              <Icon name="fiber-manual-record" size={32} color="#000" />
+            </View>
+            <Text style={styles.label}>{t('record')}</Text>
           </View>
         </View>
+
+        {/* End call */}
+        <TouchableOpacity 
+          style={styles.endCallBtn}
+          onPress={handleEndCall}
+        >
+          <Icon name="call-end" size={32} color="#fff" />
+        </TouchableOpacity>
       </View>
     );
   }
@@ -322,13 +371,82 @@ const CallScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#E5E5E5',
+    alignItems: 'center',
+    paddingTop: 100
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  topPanel: {
+    alignItems: 'center',
+    marginBottom: 60
+  },
+  topPanelFull: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#D68B1F',
+    paddingVertical: 20,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  number: {
+    fontSize: 26,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  line: {
+    width: 200,
+    height: 2,
+    backgroundColor: '#fff',
+    marginTop: 5,
+    marginBottom: 5,
+  },
+  subText: {
+    fontSize: 16,
+    color: '#fff',
+    marginTop: 5
+  },
+  buttonsGrid: {
+    width: '80%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 30,
+    marginTop: 230
+  },
+  option: {
+    width: '30%',
+    alignItems: 'center'
+  },
+  iconWrapper: {
+    width: 70,
+    height: 70,
+    borderRadius: 25,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  label: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#000'
+  },
+  endCallBtn: {
+    position: 'absolute',
+    bottom: 60,
+    width: 75,
+    height: 75,
+    backgroundColor: 'red',
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5
   },
   callContainer: {
     flex: 1,
