@@ -6,11 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import CountryPicker from 'react-native-country-picker-modal';
 import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
+import api from '../services/Client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function PhoneAuthScreen({ navigation }) {
   const { t } = useTranslation();
@@ -20,10 +23,27 @@ export default function PhoneAuthScreen({ navigation }) {
   const [countryName, setCountryName] = useState('Tajikistan'); // Added state for country name
   const [phone, setPhone] = useState('');
 
-  const handleContinue = () => {
-    // Здесь должна быть логика проверки номера телефона
-    // Для демо purposes мы просто переходим на экран OTP
-    navigation.navigate('OTP');
+  const handleContinue = async () => {
+    if (!phone) {
+      Alert.alert(t('error'), t('pleaseEnterPhoneNumber'));
+      return;
+    }
+    
+    const fullPhoneNumber = `+${callingCode}${phone}`;
+    
+    try {
+      // Send OTP code to the user
+      await api.sendOTP(fullPhoneNumber);
+      
+      // Save phone number to AsyncStorage for OTP screen
+      await AsyncStorage.setItem('tempPhoneNumber', fullPhoneNumber);
+      
+      // Navigate to OTP screen
+      navigation.navigate('OTP');
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      Alert.alert(t('error'), t('failedToProcessRequest'));
+    }
   };
 
   return (

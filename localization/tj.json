@@ -58,5 +58,17 @@
   "lightTheme": "Мавзӯи равшан",
   "lightThemeDesc": "Интерфейси тоза ва равшан",
   "darkTheme": "Мавзӯи торик",
-  "darkThemeDesc": "Барои чашмон дар торикӣ фоидаовар"
+  "darkThemeDesc": "Барои чашмон дар торикӣ фоидаовар",
+  "error": "Хатогӣ",
+  "pleaseEnterPhoneNumber": "Лутфан рақами телефони худро ворид кунед",
+  "failedToProcessRequest": "Дархост коркард нашуд",
+  "pleaseEnterFullCode": "Лутфан рамзи 4-рақамаро пурра ворид кунед",
+  "invalidOTPCode": "Рамзи OTP нодуруст аст",
+  "failedToVerifyOTP": "Рамзи OTP тасдиқ нашуд",
+  "info": "Маълумот",
+  "codeResentSuccessfully": "Рамз бомуваффақият аз нав фиристода шуд",
+  "userNotAuthenticated": "Корбар тасдиқ нашудааст",
+  "avatarUpdatedSuccessfully": "Аватар бомуваффақият навсозӣ шуд",
+  "failedToUpdateAvatar": "Навсозии аватар ноком шуд",
+  "logout": "Баромадан"
 }

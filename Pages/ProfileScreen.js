@@ -1,13 +1,39 @@
-import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Header from "../components/Header";
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
+import api from '../services/Client';
+import { launchImageLibrary } from 'react-native-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen({ navigation }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
+  const [avatarUri, setAvatarUri] = useState(null);
+  const [userData, setUserData] = useState(null);
+  
+  useEffect(() => {
+    loadUserData();
+  }, []);
+  
+  const loadUserData = async () => {
+    try {
+      const userDataString = await AsyncStorage.getItem('userData');
+      if (userDataString) {
+        const user = JSON.parse(userDataString);
+        setUserData(user);
+        
+        // If user has an avatar, set it
+        if (user.avatar) {
+          setAvatarUri(api.getAvatarUrl(user.id));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
   
   const handleLanguagePress = () => {
     navigation.navigate('LanguageSelection');
@@ -16,6 +42,72 @@ export default function ProfileScreen({ navigation }) {
   const handleThemePress = () => {
     navigation.navigate('ThemeSelection');
   };
+  
+  const handleLogout = async () => {
+    try {
+      // Clear user data from AsyncStorage
+      await AsyncStorage.removeItem('userData');
+      await AsyncStorage.removeItem('authToken');
+      
+      // Navigate back to phone auth screen
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'PhoneAuth' }],
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const handleAvatarPress = () => {
+    const options = {
+      mediaType: 'photo',
+      quality: 0.8,
+      maxWidth: 500,
+      maxHeight: 500,
+    };
+
+    launchImageLibrary(options, (response) => {
+      if (response.didCancel || response.error) {
+        console.log('User cancelled or error:', response.error);
+        return;
+      }
+
+      if (response.assets && response.assets.length > 0) {
+        const imageUri = response.assets[0].uri;
+        setAvatarUri(imageUri);
+        uploadAvatar(imageUri);
+      }
+    });
+  };
+
+  const uploadAvatar = async (imageUri) => {
+    try {
+      // Use the actual authenticated user ID
+      if (!userData || !userData.id) {
+        Alert.alert(t('error'), t('userNotAuthenticated'));
+        return;
+      }
+      
+      const userId = userData.id;
+      
+      const response = await api.uploadAvatar(userId, imageUri);
+      
+      if (response.data.success) {
+        Alert.alert(t('success'), t('avatarUpdatedSuccessfully'));
+        // Update the avatar URI to show the new avatar
+        setAvatarUri(imageUri);
+        
+        // Refresh user data to get the updated avatar info
+        loadUserData();
+      } else {
+        Alert.alert(t('error'), response.data.message || t('failedToUpdateAvatar'));
+      }
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      Alert.alert(t('error'), t('failedToUpdateAvatar'));
+    }
+  };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -23,17 +115,28 @@ export default function ProfileScreen({ navigation }) {
       
       {/* User Card and Status - now in one block */}
       <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
-        <View style={[styles.userCard, { backgroundColor: theme.cardBackground }]}>
-          <View style={[styles.avatar, { backgroundColor: theme.inputBackground }]}>
-            <Icon name="person" size={70} color={theme.text} />
-            <View style={[styles.onlineDot, { backgroundColor: theme.success }]} />
-          </View>
+        <TouchableOpacity onPress={handleAvatarPress}>
+          <View style={[styles.userCard, { backgroundColor: theme.cardBackground }]}>
+            <View style={[styles.avatar, { backgroundColor: theme.inputBackground }]}>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+              ) : userData && userData.avatar ? (
+                <Image source={{ uri: api.getAvatarUrl(userData.id) }} style={styles.avatarImage} />
+              ) : (
+                <Icon name="person" size={70} color={theme.text} />
+              )}
+              <View style={[styles.onlineDot, { backgroundColor: theme.success }]} />
+              <View style={styles.editIconContainer}>
+                <Icon name="camera-alt" size={16} color="#fff" />
+              </View>
+            </View>
 
-          <View>
-            <Text style={[styles.userName, { color: theme.text }]}>CallApp</Text>
-            <Text style={[styles.userPhone, { color: theme.textSecondary }]}>+992 98 704 6624</Text>
+            <View>
+              <Text style={[styles.userName, { color: theme.text }]}>{userData?.username || 'CallApp'}</Text>
+              <Text style={[styles.userPhone, { color: theme.textSecondary }]}>{userData?.phone_number || '+992 98 704 6624'}</Text>
+            </View>
           </View>
-        </View>
+        </TouchableOpacity>
         
         {/* Separator line */}
         <View style={[styles.separator, { borderBottomColor: theme.border }]} />
@@ -65,6 +168,7 @@ export default function ProfileScreen({ navigation }) {
         <MenuItem icon="person-add" color={theme.primary} label={t('inviteFriends')} theme={theme} />
         <MenuItem icon="star-border" color={theme.primary} label={t('rateApp')} theme={theme} />
         <MenuItem icon="description" color={theme.primary} label={t('privacyPolicy')} theme={theme} />
+        <MenuItem icon="exit-to-app" color={theme.primary} label={t('logout')} theme={theme} onPress={handleLogout} />
       </View>
     </ScrollView>
   );
@@ -104,6 +208,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5", // Add background color
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
+  },
+  avatarImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
   },
   onlineDot: {
     width: 12,
@@ -113,6 +223,17 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 4,
     right: 4,
+  },
+  editIconContainer: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#D68B1F",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
   },
   userName: {
     fontSize: 18,

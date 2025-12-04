@@ -58,5 +58,17 @@
   "lightTheme": "Светлая тема",
   "lightThemeDesc": "Чистый и яркий интерфейс",
   "darkTheme": "Темная тема",
-  "darkThemeDesc": "Комфортно для глаз в темноте"
+  "darkThemeDesc": "Комфортно для глаз в темноте",
+  "error": "Ошибка",
+  "pleaseEnterPhoneNumber": "Пожалуйста, введите ваш номер телефона",
+  "failedToProcessRequest": "Не удалось обработать запрос",
+  "pleaseEnterFullCode": "Пожалуйста, введите полный 4-значный код",
+  "invalidOTPCode": "Неверный код OTP",
+  "failedToVerifyOTP": "Не удалось проверить код OTP",
+  "info": "Информация",
+  "codeResentSuccessfully": "Код успешно отправлен повторно",
+  "userNotAuthenticated": "Пользователь не авторизован",
+  "avatarUpdatedSuccessfully": "Аватар успешно обновлен",
+  "failedToUpdateAvatar": "Не удалось обновить аватар",
+  "logout": "Выйти"
 }

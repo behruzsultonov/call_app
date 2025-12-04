@@ -58,5 +58,17 @@
   "lightTheme": "Light Theme",
   "lightThemeDesc": "Clean and bright interface",
   "darkTheme": "Dark Theme",
-  "darkThemeDesc": "Easy on the eyes in low light"
+  "darkThemeDesc": "Easy on the eyes in low light",
+  "error": "Error",
+  "pleaseEnterPhoneNumber": "Please enter your phone number",
+  "failedToProcessRequest": "Failed to process request",
+  "pleaseEnterFullCode": "Please enter the full 4-digit code",
+  "invalidOTPCode": "Invalid OTP code",
+  "failedToVerifyOTP": "Failed to verify OTP code",
+  "info": "Info",
+  "codeResentSuccessfully": "Code resent successfully",
+  "userNotAuthenticated": "User not authenticated",
+  "avatarUpdatedSuccessfully": "Avatar updated successfully",
+  "failedToUpdateAvatar": "Failed to update avatar",
+  "logout": "Logout"
 }
