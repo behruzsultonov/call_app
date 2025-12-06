@@ -2,6 +2,7 @@
 // Users API endpoints
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../lib/utils.php';
+require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
 
 // Check if database connection is available
 if (!$pdo) {
@@ -34,6 +35,12 @@ switch ($method) {
 
 function handleGetUsers() {
     global $pdo;
+    
+    // Authenticate request
+    $authenticatedUser = authenticateRequest($pdo);
+    if (!$authenticatedUser) {
+        sendResponse(false, "Authentication required");
+    }
     
     // Get user ID from query parameters (this refers to the 'id' field in the users table)
     $userId = isset($_GET['user_id']) ? (int)validateInput($_GET['user_id']) : null;
@@ -73,6 +80,12 @@ function handleGetUsers() {
 
 function handleCreateUser() {
     global $pdo;
+    
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
     
     // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
@@ -114,12 +127,23 @@ function handleCreateUser() {
 function handleUpdateUser() {
     global $pdo;
     
+    // Authenticate request
+    $authenticatedUser = authenticateRequest($pdo);
+    if (!$authenticatedUser) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
     $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null; // This refers to the 'id' field in the users table
     $username = isset($input['username']) ? validateInput($input['username']) : null;
     $phoneNumber = isset($input['phone_number']) ? validateInput($input['phone_number']) : null;
+    
+    // Verify that the authenticated user is the same as the user being updated
+    if ($authenticatedUser['id'] != $userId) {
+        sendResponse(false, "User ID mismatch");
+    }
     
     if (!$userId) {
         sendResponse(false, "User ID is required");
@@ -142,10 +166,21 @@ function handleUpdateUser() {
 function handleDeleteUser() {
     global $pdo;
     
+    // Authenticate request
+    $authenticatedUser = authenticateRequest($pdo);
+    if (!$authenticatedUser) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
     $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null; // This refers to the 'id' field in the users table
+    
+    // Verify that the authenticated user is the same as the user being deleted
+    if ($authenticatedUser['id'] != $userId) {
+        sendResponse(false, "User ID mismatch");
+    }
     
     if (!$userId) {
         sendResponse(false, "User ID is required");

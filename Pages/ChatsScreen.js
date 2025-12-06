@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,42 +6,135 @@ import {
   SafeAreaView,
   FlatList,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
+import api from '../services/Client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ChatsScreen({ navigation }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   
-  const chats = [
-    {
-      id: '1',
-      name: 'John Doe',
-      phone: '+1234567890',
-      message: 'Hey, how are you doing?',
-      time: '10:30 AM',
-      unread: 2,
-    },
-    {
-      id: '2',
-      name: 'Jane Smith',
-      phone: '+0987654321',
-      message: 'See you tomorrow!',
-      time: '9:15 AM',
-      unread: 0,
-    },
-    {
-      id: '3',
-      name: 'Bob Johnson',
-      phone: '+1122334455',
-      message: 'Thanks for your help',
-      time: 'Yesterday',
-      unread: 0,
-    },
-  ];
+  const [chats, setChats] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState(null);
+  
+  useEffect(() => {
+    loadUserData();
+  }, []);
+  
+  useEffect(() => {
+    if (userId) {
+      loadChats();
+    }
+  }, [userId]);
+  
+  const loadUserData = async () => {
+    try {
+      const userDataString = await AsyncStorage.getItem('userData');
+      const authToken = await AsyncStorage.getItem('authToken');
+      
+      console.log('ChatsScreen: Loaded user data from AsyncStorage:', userDataString);
+      console.log('ChatsScreen: Loaded auth token from AsyncStorage:', authToken);
+      
+      if (userDataString && authToken) {
+        const user = JSON.parse(userDataString);
+        console.log('ChatsScreen: Parsed user data:', user);
+        setUserId(user.id);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+  
+  const loadChats = async () => {
+    if (!userId) {
+      console.log('ChatsScreen: No user ID, skipping loadChats');
+      return;
+    }
+    
+    console.log('Loading chats for user ID:', userId);
+    try {
+      setLoading(true);
+      console.log('ChatsScreen: Making API call to get chats for user ID:', userId);
+      
+      const response = await api.getChats(userId);
+      
+      console.log('ChatsScreen: Received response from getChats:', response);
+      
+      if (response.data.success) {
+        // Transform chats to match the expected format
+        const formattedChats = (response.data.data || []).map(chat => ({
+          id: chat.id,
+          name: chat.chat_name || 'Unknown',
+          message: chat.last_message || '',
+          time: chat.last_message_time ? 
+            new Date(chat.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+            '',
+          unread: chat.unread_count || 0,
+        }));
+        
+        setChats(formattedChats);
+      } else {
+        console.log('Failed to load chats:', response.data.message);
+        setChats([]);
+      }
+    } catch (error) {
+      console.error('Error loading chats:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data,
+        status: error.response?.status,
+        headers: error.response?.headers,
+        config: error.config,
+        request: error.request
+      });
+      setChats([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const createNewChat = async (participantId) => {
+    if (!userId) return;
+    
+    try {
+      const chatData = {
+        chat_name: `Chat ${Date.now()}`,
+        chat_type: 'private',
+        created_by: userId,
+        participants: [userId, participantId]
+      };
+      
+      const response = await api.createChat(chatData);
+      
+      if (response.data.success) {
+        // Reload chats after creating a new one
+        loadChats();
+        
+        // Navigate to the new chat
+        navigation.navigate('Chat', { 
+          chat: { id: response.data.data.id, name: response.data.data.chat_name }
+        });
+      } else {
+        Alert.alert(t('error'), response.data.message || t('failedToCreateChat'));
+      }
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      Alert.alert(t('error'), t('failedToCreateChat'));
+    }
+  };
+  
+  const handleCreateChat = () => {
+    // For now, we'll navigate to contacts screen to select a contact
+    // In a real implementation, you would show a contact picker
+    navigation.navigate('Contacts');
+  };
 
   const renderChatItem = ({ item }) => (
     <TouchableOpacity 
@@ -82,12 +175,24 @@ export default function ChatsScreen({ navigation }) {
       
       <FlatList
         data={chats}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         renderItem={renderChatItem}
         contentContainerStyle={styles.chatList}
+        onRefresh={loadChats}
+        refreshing={loading}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              {t('noChatsYet')}
+            </Text>
+          </View>
+        }
       />
       
-      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary }]}>
+      <TouchableOpacity 
+        style={[styles.fab, { backgroundColor: theme.primary }]}
+        onPress={handleCreateChat}
+      >
         <Icon name="chat" size={24} color={theme.buttonText} />
       </TouchableOpacity>
     </SafeAreaView>
@@ -168,5 +273,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 50,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
   },
 });

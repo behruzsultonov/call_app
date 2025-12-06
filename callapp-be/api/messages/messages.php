@@ -2,6 +2,7 @@
 // Messages API endpoints
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../lib/utils.php';
+require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
 
 // Check if database connection is available
 if (!$pdo) {
@@ -35,11 +36,22 @@ switch ($method) {
 function handleGetMessages() {
     global $pdo;
     
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Get parameters from query string
     $chatId = isset($_GET['chat_id']) ? (int)validateInput($_GET['chat_id']) : null;
     $userId = isset($_GET['user_id']) ? (int)validateInput($_GET['user_id']) : null; // This refers to the 'id' field in the users table
     $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 50;
     $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+    
+    // Verify that the authenticated user is the same as the user in the request
+    if ($user['id'] != $userId) {
+        sendResponse(false, "User ID mismatch");
+    }
     
     if (!$chatId || !$userId) {
         sendResponse(false, "Chat ID and User ID are required");
@@ -96,16 +108,35 @@ function handleGetMessages() {
 function handleSendMessage() {
     global $pdo;
     
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
     $chatId = isset($input['chat_id']) ? (int)validateInput($input['chat_id']) : null;
     $senderId = isset($input['sender_id']) ? (int)validateInput($input['sender_id']) : null; // This refers to the 'id' field in the users table
-    $messageText = isset($input['message_text']) ? validateInput($input['message_text']) : null;
+    $messageText = isset($input['message_text']) ? validateInput($input['message_text']) : '';
     $messageType = isset($input['message_type']) ? validateInput($input['message_type']) : 'text';
+    $fileUrl = isset($input['file_url']) ? validateInput($input['file_url']) : null;
+    $fileName = isset($input['file_name']) ? validateInput($input['file_name']) : null;
+    $fileSize = isset($input['file_size']) ? (int)$input['file_size'] : null;
     
-    if (!$chatId || !$senderId || !$messageText) {
-        sendResponse(false, "Chat ID, Sender ID, and Message Text are required");
+    // Verify that the authenticated user is the same as the sender
+    if ($user['id'] != $senderId) {
+        sendResponse(false, "User ID mismatch");
+    }
+    
+    // For text messages, require message text. For other types, it's optional.
+    if ($messageType === 'text' && empty($messageText)) {
+        sendResponse(false, "Message Text is required for text messages");
+    }
+    
+    if (!$chatId || !$senderId) {
+        sendResponse(false, "Chat ID and Sender ID are required");
     }
     
     try {
@@ -115,11 +146,21 @@ function handleSendMessage() {
         }
         
         // Insert message
-        $stmt = $pdo->prepare("
-            INSERT INTO messages (chat_id, sender_id, message_text, message_type, sent_at) 
-            VALUES (?, ?, ?, ?, NOW())
-        ");
-        $stmt->execute([$chatId, $senderId, $messageText, $messageType]);
+        if ($messageType === 'image' && $fileUrl) {
+            // For image messages, include file information
+            $stmt = $pdo->prepare("
+                INSERT INTO messages (chat_id, sender_id, message_text, message_type, file_url, file_name, file_size, sent_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            ");
+            $stmt->execute([$chatId, $senderId, $messageText, $messageType, $fileUrl, $fileName, $fileSize]);
+        } else {
+            // For text messages
+            $stmt = $pdo->prepare("
+                INSERT INTO messages (chat_id, sender_id, message_text, message_type, sent_at) 
+                VALUES (?, ?, ?, ?, NOW())
+            ");
+            $stmt->execute([$chatId, $senderId, $messageText, $messageType]);
+        }
         
         // Get the created message ID
         $messageId = $pdo->lastInsertId();
@@ -158,12 +199,23 @@ function handleSendMessage() {
 function handleUpdateMessage() {
     global $pdo;
     
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
     $messageId = isset($input['message_id']) ? (int)validateInput($input['message_id']) : null;
     $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null; // This refers to the 'id' field in the users table
     $messageText = isset($input['message_text']) ? validateInput($input['message_text']) : null;
+    
+    // Verify that the authenticated user is the same as the user in the request
+    if ($user['id'] != $userId) {
+        sendResponse(false, "User ID mismatch");
+    }
     
     if (!$messageId || !$userId || !$messageText) {
         sendResponse(false, "Message ID, User ID, and Message Text are required");
@@ -214,11 +266,22 @@ function handleUpdateMessage() {
 function handleDeleteMessage() {
     global $pdo;
     
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
     $messageId = isset($input['message_id']) ? (int)validateInput($input['message_id']) : null;
     $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null; // This refers to the 'id' field in the users table
+    
+    // Verify that the authenticated user is the same as the user in the request
+    if ($user['id'] != $userId) {
+        sendResponse(false, "User ID mismatch");
+    }
     
     if (!$messageId || !$userId) {
         sendResponse(false, "Message ID and User ID are required");

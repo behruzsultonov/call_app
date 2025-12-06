@@ -6,11 +6,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
+  Alert,
+  Image,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import ChatHeader from '../components/ChatHeader';
+import api from '../services/Client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 
 export default function ChatScreen({ navigation, route }) {
   const { t } = useTranslation();
@@ -19,7 +24,7 @@ export default function ChatScreen({ navigation, route }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [userId, setUserId] = useState(1); // Test user ID
+  const [userId, setUserId] = useState(null);
   
   // Get chat data from navigation params
   const { chat } = route.params || {};
@@ -30,8 +35,8 @@ export default function ChatScreen({ navigation, route }) {
     console.log('ChatScreen mounted with params:', route.params);
     console.log('Chat ID:', chatId);
     
-    // Load messages
-    loadMessages();
+    // Load user data and then messages
+    loadUserData();
   }, []);
 
   useEffect(() => {
@@ -42,56 +47,49 @@ export default function ChatScreen({ navigation, route }) {
     }
   }, [chatId, userId]); // Add userId to dependency array to ensure reload when it changes
 
+  const loadUserData = async () => {
+    try {
+      const userDataString = await AsyncStorage.getItem('userData');
+      if (userDataString) {
+        const user = JSON.parse(userDataString);
+        setUserId(user.id);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+  
   const loadMessages = async () => {
+    if (!chatId || !userId) return;
     
     try {
       setLoading(true);
       console.log('Loading messages for chat:', chatId, 'user:', userId);
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Test data for messages
-      const response = {
-        data: {
-          success: true,
-          message: 'Messages retrieved successfully',
-          data: [
-            {
-              id: 1,
-              message_text: 'Hello there!',
-              sender_id: 2,
-              sent_at: '2023-05-15T10:30:00Z',
-              status: 'read'
-            },
-            {
-              id: 2,
-              message_text: 'Hi! How are you doing?',
-              sender_id: 1, // Current user
-              sent_at: '2023-05-15T10:32:00Z',
-              status: 'read'
-            },
-            {
-              id: 3,
-              message_text: 'I\'m doing great, thanks for asking!',
-              sender_id: 2,
-              sent_at: '2023-05-15T10:35:00Z',
-              status: 'read'
-            }
-          ]
-        }
-      };
+      const response = await api.getMessages(chatId, userId);
       console.log('Messages response:', response.data);
       
       if (response.data.success) {
         // Transform messages to match the expected format
-        const formattedMessages = (response.data.data || []).map(msg => ({
-          id: parseInt(msg.id), // Ensure ID is integer
-          text: msg.message_text || '',
-          time: msg.sent_at ? new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
-          isMe: parseInt(msg.sender_id) === parseInt(userId), // Compare as integers
-          status: msg.status || 'read', // Use status from message or default to 'read'
-        }));
+        const formattedMessages = (response.data.data || []).map(msg => {
+          const baseMessage = {
+            id: parseInt(msg.id), // Ensure ID is integer
+            text: msg.message_text || '',
+            time: msg.sent_at ? new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
+            isMe: parseInt(msg.sender_id) === parseInt(userId), // Compare as integers
+            status: msg.status || 'sent', // Use status from message or default to 'sent'
+            messageType: msg.message_type || 'text'
+          };
+          
+          // Add image or video URL based on message type
+          if (msg.message_type === 'image' && msg.file_url) {
+            baseMessage.imageUrl = `https://sadoapp.tj/callapp-be/${msg.file_url}`;
+          } else if (msg.message_type === 'video' && msg.file_url) {
+            baseMessage.videoUrl = `https://sadoapp.tj/callapp-be/${msg.file_url}`;
+          }
+          
+          return baseMessage;
+        });
         
         console.log('Formatted messages:', formattedMessages);
         setMessages(formattedMessages);
@@ -108,7 +106,7 @@ export default function ChatScreen({ navigation, route }) {
   };
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !userId) return;
     
     try {
       // Create temporary message to show immediately
@@ -119,6 +117,7 @@ export default function ChatScreen({ navigation, route }) {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: true,
         status: 'sent',
+        messageType: 'text'
       };
       
       // Add temporary message to UI
@@ -130,30 +129,14 @@ export default function ChatScreen({ navigation, route }) {
       // Send message to server
       const messageData = {
         chat_id: chatId,
-        sender_id: userId, // Use test user ID
+        sender_id: userId,
         message_text: input,
         message_type: 'text'
       };
       
       console.log('Sending message:', messageData);
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Test data for message sending
-      const response = {
-        data: {
-          success: true,
-          message: 'Message sent successfully',
-          data: {
-            id: Math.floor(Math.random() * 10000) + 100,
-            message_text: messageData.message_text,
-            sender_id: messageData.sender_id,
-            sent_at: new Date().toISOString(),
-            status: 'delivered'
-          }
-        }
-      };
+      const response = await api.sendMessage(messageData);
       console.log('Send message response:', response.data);
       
       if (response.data.success && response.data.data) {
@@ -169,7 +152,8 @@ export default function ChatScreen({ navigation, route }) {
                 new Date(response.data.data.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
                 tempMessage.time,
               isMe: parseInt(response.data.data.sender_id) === parseInt(userId), // Compare as integers
-              status: 'delivered'
+              status: response.data.data.status || 'delivered',
+              messageType: response.data.data.message_type || 'text'
             };
           }
           return updatedMessages;
@@ -177,49 +161,317 @@ export default function ChatScreen({ navigation, route }) {
       } else {
         // Remove temporary message if sending failed
         setMessages(prev => prev.filter(msg => msg.id !== tempId));
-        console.log('Failed to send message:', response.data.message);
+        Alert.alert(t('error'), response.data.message || t('failedToSendMessage'));
       }
     } catch (error) {
       // Remove temporary message if sending failed
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
       console.log('Error sending message:', error);
+      Alert.alert(t('error'), t('failedToSendMessage'));
     }
   };
 
-  const renderMessage = ({ item }) => (
-    <View
-      style={[
-        styles.messageContainer,
-        item.isMe ? styles.myMessage : styles.otherMessage,
-        { 
-          backgroundColor: item.isMe ? theme.primary : theme.cardBackground,
-          // Add a subtle border to make incoming messages more visible
-          ...(!item.isMe && {
-            borderWidth: 1,
-            borderColor: theme.border,
-          }),
-        }
-      ]}
-    >
-      <Text style={[styles.messageText, { color: item.isMe ? theme.buttonText : theme.text }]}>{item.text}</Text>
-      <View style={styles.messageInfo}>
-        <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
-        {item.isMe && (
-          <View style={styles.statusContainer}>
-            {item.status === 'sent' && (
-              <Icon name="done" size={16} color="#ffffffaa" />
-            )}
-            {item.status === 'delivered' && (
-              <Icon name="done-all" size={16} color="#cccccc" />
-            )}
-            {item.status === 'read' && (
-              <Icon name="done-all" size={16} color="#4FC3F7" />
+  const selectImage = () => {
+    const options = {
+      mediaType: 'photo',
+      quality: 0.8,
+    };
+
+    launchImageLibrary(options, async (response) => {
+      if (response.didCancel || response.error) {
+        console.log('Image picker cancelled or error:', response.error);
+        return;
+      }
+
+      if (response.assets && response.assets.length > 0) {
+        const imageAsset = response.assets[0];
+        await sendImage(imageAsset);
+      }
+    });
+  };
+
+  const selectVideo = () => {
+    const options = {
+      mediaType: 'video',
+      quality: 0.8,
+    };
+
+    launchImageLibrary(options, async (response) => {
+      if (response.didCancel || response.error) {
+        console.log('Video picker cancelled or error:', response.error);
+        return;
+      }
+
+      if (response.assets && response.assets.length > 0) {
+        const videoAsset = response.assets[0];
+        await sendVideo(videoAsset);
+      }
+    });
+  };
+
+  const sendImage = async (imageAsset) => {
+    if (!userId) return;
+
+    try {
+      // Create temporary message to show immediately
+      const tempId = Date.now(); // Temporary ID
+      const tempMessage = {
+        id: tempId,
+        text: '',
+        imageUrl: imageAsset.uri,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isMe: true,
+        status: 'sending',
+        messageType: 'image'
+      };
+
+      // Add temporary message to UI
+      setMessages(prev => [...prev, tempMessage]);
+
+      // Create form data for image upload
+      const formData = new FormData();
+      formData.append('image', {
+        uri: imageAsset.uri,
+        type: imageAsset.type || 'image/jpeg',
+        name: imageAsset.fileName || `image_${Date.now()}.jpg`,
+      });
+      formData.append('chat_id', chatId);
+      formData.append('sender_id', userId);
+
+      console.log('Uploading image:', imageAsset.uri);
+
+      // Send image to server
+      const response = await api.uploadImage(formData);
+      console.log('Upload image response:', response.data);
+
+      if (response.data.success && response.data.data) {
+        // Replace temporary message with actual message from server
+        setMessages(prev => {
+          const updatedMessages = [...prev];
+          const tempIndex = updatedMessages.findIndex(msg => msg.id === tempId);
+          if (tempIndex !== -1) {
+            updatedMessages[tempIndex] = {
+              id: parseInt(response.data.data.id),
+              text: response.data.data.message_text || '',
+              imageUrl: response.data.data.file_url ? `https://sadoapp.tj/callapp-be/${response.data.data.file_url}` : null,
+              time: response.data.data.sent_at ? 
+                new Date(response.data.data.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+                tempMessage.time,
+              isMe: parseInt(response.data.data.sender_id) === parseInt(userId),
+              status: response.data.data.status || 'delivered',
+              messageType: response.data.data.message_type || 'image'
+            };
+          }
+          return updatedMessages;
+        });
+      } else {
+        // Remove temporary message if sending failed
+        setMessages(prev => prev.filter(msg => msg.id !== tempId));
+        Alert.alert(t('error'), response.data.message || t('failedToSendImage'));
+      }
+    } catch (error) {
+      // Remove temporary message if sending failed
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+      console.log('Error sending image:', error);
+      Alert.alert(t('error'), t('failedToSendImage'));
+    }
+  };
+
+  const sendVideo = async (videoAsset) => {
+    if (!userId) return;
+
+    try {
+      // Create temporary message to show immediately
+      const tempId = Date.now(); // Temporary ID
+      const tempMessage = {
+        id: tempId,
+        text: '',
+        videoUrl: videoAsset.uri,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isMe: true,
+        status: 'sending',
+        messageType: 'video'
+      };
+
+      // Add temporary message to UI
+      setMessages(prev => [...prev, tempMessage]);
+
+      // Create form data for video upload
+      const formData = new FormData();
+      formData.append('video', {
+        uri: videoAsset.uri,
+        type: videoAsset.type || 'video/mp4',
+        name: videoAsset.fileName || `video_${Date.now()}.mp4`,
+      });
+      formData.append('chat_id', chatId);
+      formData.append('sender_id', userId);
+
+      console.log('Uploading video:', videoAsset.uri);
+
+      // Send video to server
+      const response = await api.uploadVideo(formData);
+      console.log('Upload video response:', response.data);
+
+      if (response.data.success && response.data.data) {
+        // Replace temporary message with actual message from server
+        setMessages(prev => {
+          const updatedMessages = [...prev];
+          const tempIndex = updatedMessages.findIndex(msg => msg.id === tempId);
+          if (tempIndex !== -1) {
+            updatedMessages[tempIndex] = {
+              id: parseInt(response.data.data.id),
+              text: response.data.data.message_text || '',
+              videoUrl: response.data.data.file_url ? `https://sadoapp.tj/callapp-be/${response.data.data.file_url}` : null,
+              time: response.data.data.sent_at ? 
+                new Date(response.data.data.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+                tempMessage.time,
+              isMe: parseInt(response.data.data.sender_id) === parseInt(userId),
+              status: response.data.data.status || 'delivered',
+              messageType: response.data.data.message_type || 'video'
+            };
+          }
+          return updatedMessages;
+        });
+      } else {
+        // Remove temporary message if sending failed
+        setMessages(prev => prev.filter(msg => msg.id !== tempId));
+        Alert.alert(t('error'), response.data.message || t('failedToSendVideo'));
+      }
+    } catch (error) {
+      // Remove temporary message if sending failed
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+      console.log('Error sending video:', error);
+      Alert.alert(t('error'), t('failedToSendVideo'));
+    }
+  };
+
+  const renderMessage = ({ item }) => {
+    if (item.messageType === 'image') {
+      return (
+        <View
+          style={[
+            styles.messageContainer,
+            item.isMe ? styles.myMessage : styles.otherMessage,
+            { 
+              backgroundColor: item.isMe ? theme.primary : theme.cardBackground,
+              // Add a subtle border to make incoming messages more visible
+              ...(!item.isMe && {
+                borderWidth: 1,
+                borderColor: theme.border,
+              }),
+              maxWidth: '80%',
+              padding: 0,
+            }
+          ]}
+        >
+          <Image 
+            source={{ uri: item.imageUrl }} 
+            style={styles.imageMessage}
+            resizeMode="cover"
+          />
+          <View style={styles.imageMessageInfo}>
+            <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
+            {item.isMe && (
+              <View style={styles.statusContainer}>
+                {item.status === 'sending' && (
+                  <Icon name="schedule" size={16} color="#ffffffaa" />
+                )}
+                {item.status === 'sent' && (
+                  <Icon name="done" size={16} color="#ffffffaa" />
+                )}
+                {item.status === 'delivered' && (
+                  <Icon name="done-all" size={16} color="#cccccc" />
+                )}
+                {item.status === 'read' && (
+                  <Icon name="done-all" size={16} color="#4FC3F7" />
+                )}
+              </View>
             )}
           </View>
-        )}
+        </View>
+      );
+    }
+
+    if (item.messageType === 'video') {
+      return (
+        <View
+          style={[
+            styles.messageContainer,
+            item.isMe ? styles.myMessage : styles.otherMessage,
+            { 
+              backgroundColor: item.isMe ? theme.primary : theme.cardBackground,
+              // Add a subtle border to make incoming messages more visible
+              ...(!item.isMe && {
+                borderWidth: 1,
+                borderColor: theme.border,
+              }),
+              maxWidth: '80%'
+            }
+          ]}
+        >
+          <TouchableOpacity onPress={() => console.log('Play video:', item.videoUrl)}>
+            <View style={styles.videoThumbnail}>
+              <Icon name="play-arrow" size={40} color="#ffffff" />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.imageMessageInfo}>
+            <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
+            {item.isMe && (
+              <View style={styles.statusContainer}>
+                {item.status === 'sending' && (
+                  <Icon name="schedule" size={16} color="#ffffffaa" />
+                )}
+                {item.status === 'sent' && (
+                  <Icon name="done" size={16} color="#ffffffaa" />
+                )}
+                {item.status === 'delivered' && (
+                  <Icon name="done-all" size={16} color="#cccccc" />
+                )}
+                {item.status === 'read' && (
+                  <Icon name="done-all" size={16} color="#4FC3F7" />
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View
+        style={[
+          styles.messageContainer,
+          item.isMe ? styles.myMessage : styles.otherMessage,
+          { 
+            backgroundColor: item.isMe ? theme.primary : theme.cardBackground,
+            // Add a subtle border to make incoming messages more visible
+            ...(!item.isMe && {
+              borderWidth: 1,
+              borderColor: theme.border,
+            }),
+          }
+        ]}
+      >
+        <Text style={[styles.messageText, { color: item.isMe ? theme.buttonText : theme.text }]}>{item.text}</Text>
+        <View style={styles.messageInfo}>
+          <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
+          {item.isMe && (
+            <View style={styles.statusContainer}>
+              {item.status === 'sent' && (
+                <Icon name="done" size={16} color="#ffffffaa" />
+              )}
+              {item.status === 'delivered' && (
+                <Icon name="done-all" size={16} color="#cccccc" />
+              )}
+              {item.status === 'read' && (
+                <Icon name="done-all" size={16} color="#4FC3F7" />
+              )}
+            </View>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -244,7 +496,28 @@ export default function ChatScreen({ navigation, route }) {
 
       {/* Поле ввода */}
       <View style={[styles.inputContainer, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
-        <TouchableOpacity style={styles.iconButton}>
+        <TouchableOpacity style={styles.iconButton} onPress={() => {
+          // Show action sheet for media selection
+          Alert.alert(
+            t('selectMedia'),
+            t('chooseMediaType'),
+            [
+              {
+                text: t('image'),
+                onPress: selectImage,
+              },
+              {
+                text: t('video'),
+                onPress: selectVideo,
+              },
+              {
+                text: t('cancel'),
+                style: 'cancel',
+              },
+            ],
+            { cancelable: true }
+          );
+        }}>
           <Icon name="attach-file" size={24} color={theme.textSecondary} />
         </TouchableOpacity>
         
@@ -319,6 +592,30 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 16,
     lineHeight: 20,
+  },
+
+  imageMessage: {
+    width: 200,
+    height: 200,
+    borderRadius: 10,
+  },
+
+  videoThumbnail: {
+    width: 200,
+    height: 200,
+    borderRadius: 10,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  imageMessageInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingBottom: 4,
   },
 
   messageInfo: {

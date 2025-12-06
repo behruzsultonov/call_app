@@ -2,6 +2,7 @@
 // Avatar upload and management endpoints
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../lib/utils.php';
+require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
 
 // Check if database connection is available
 if (!$pdo) {
@@ -27,8 +28,19 @@ switch ($method) {
 function handleUploadAvatar() {
     global $pdo;
     
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Check if user_id is provided (this refers to the 'id' field in the users table)
     $userId = isset($_POST['user_id']) ? (int)validateInput($_POST['user_id']) : null;
+    
+    // Verify that the authenticated user is the same as the user in the request
+    if ($user['id'] != $userId) {
+        sendResponse(false, "User ID mismatch");
+    }
     
     if (!$userId) {
         sendResponse(false, "User ID is required");
@@ -126,6 +138,16 @@ function handleUploadAvatar() {
 }
 
 function handleGetAvatar() {
+    global $pdo;
+    
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        // Return 404 if not authenticated
+        http_response_code(404);
+        exit;
+    }
+    
     $userId = isset($_GET['user_id']) ? (int)validateInput($_GET['user_id']) : null;
     
     if (!$userId) {

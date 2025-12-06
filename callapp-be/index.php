@@ -1,7 +1,4 @@
 <?php
-// Main entry point for the chat API
-// Routes requests based on the 'action' parameter
-
 // Enable CORS for cross-origin requests
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
@@ -22,12 +19,24 @@ switch ($action) {
         require_once __DIR__ . '/api/users/users.php';
         break;
         
+    case 'contacts':
+        require_once __DIR__ . '/api/contacts/contacts.php';
+        break;
+        
     case 'chats':
         require_once __DIR__ . '/api/chats/chats.php';
         break;
         
     case 'messages':
         require_once __DIR__ . '/api/messages/messages.php';
+        break;
+        
+    case 'upload_image':
+        require_once __DIR__ . '/api/messages/upload_image.php';
+        break;
+        
+    case 'upload_video':
+        require_once __DIR__ . '/api/messages/upload_video.php';
         break;
         
     case 'messages_read':

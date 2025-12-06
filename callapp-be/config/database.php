@@ -8,11 +8,13 @@ define('DB_PASS', 'Eu9nj9!rLtRz');
 // Create PDO connection with better error handling
 $pdo = null;
 try {
+    error_log("Attempting database connection to " . DB_HOST . " with user " . DB_USER);
     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USER, DB_PASS, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
+    error_log("Database connection successful");
 } catch(PDOException $e) {
     // Log the error to PHP error log
     error_log("Database connection failed: " . $e->getMessage());
@@ -37,5 +39,35 @@ function getChatId($pdo, $user1Id, $user2Id) {
     $stmt->execute([$user1Id, $user2Id]);
     $result = $stmt->fetch();
     return $result ? $result['id'] : null;
+}
+
+// Function to validate auth token
+function validateAuthToken($pdo, $userId, $token) {
+    // Check if database connection is available
+    if (!$pdo) {
+        return false;
+    }
+    
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ? AND auth_token = ?");
+    $stmt->execute([$userId, $token]);
+    $result = $stmt->fetch();
+    return $result ? true : false;
+}
+
+// Function to generate and save auth token
+function generateAndSaveToken($pdo, $userId) {
+    // Check if database connection is available
+    if (!$pdo) {
+        return false;
+    }
+    
+    // Generate a secure token
+    $token = bin2hex(random_bytes(32));
+    
+    // Update user with new token (no expiration)
+    $stmt = $pdo->prepare("UPDATE users SET auth_token = ? WHERE id = ?");
+    $stmt->execute([$token, $userId]);
+    
+    return $token;
 }
 ?>

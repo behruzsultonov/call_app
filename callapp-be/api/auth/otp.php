@@ -96,17 +96,37 @@ function handleVerifyOTP($input) {
             }
             
             // Check if user exists
-            $stmt = $pdo->prepare("SELECT id, username, phone_number, avatar FROM users WHERE phone_number = ? LIMIT 1");
+            $stmt = $pdo->prepare("SELECT id, username, phone_number, avatar, auth_token FROM users WHERE phone_number = ? LIMIT 1");
             $stmt->execute([$phoneNumber]);
             $user = $stmt->fetch();
             
             if ($user) {
                 // Debug: Log user data
                 error_log("User found: " . print_r($user, true));
+                
+                // Check if user already has a valid token
+                $existingToken = $user['auth_token'];
+                
+                if ($existingToken && strlen($existingToken) > 0) {
+                    // User already has a valid token, use it
+                    $token = $existingToken;
+                } else {
+                    // User doesn't have a token, generate and save one
+                    $token = generateAndSaveToken($pdo, $user['id']);
+                }
+                
+                // Get updated user data with token (only if we generated a new one)
+                if ($token !== $existingToken) {
+                    $stmt = $pdo->prepare("SELECT id, username, phone_number, avatar, auth_token FROM users WHERE id = ?");
+                    $stmt->execute([$user['id']]);
+                    $updatedUser = $stmt->fetch();
+                } else {
+                    $updatedUser = $user;
+                }
+                
                 // User exists, return user data
                 sendResponse(true, "Authentication successful", [
-                    'user' => $user,
-                    'token' => generateToken($user['id'])
+                    'user' => $updatedUser
                 ]);
             } else {
                 // User doesn't exist, create new user
@@ -117,20 +137,19 @@ function handleVerifyOTP($input) {
                 // Get the created user ID
                 $userId = $pdo->lastInsertId();
                 
-                // Return the created user with default values
-                $newUser = [
-                    'id' => $userId,
-                    'username' => $username,
-                    'phone_number' => $phoneNumber,
-                    'avatar' => null
-                ];
+                // Generate and save persistent token
+                $token = generateAndSaveToken($pdo, $userId);
+                
+                // Get updated user data with token
+                $stmt = $pdo->prepare("SELECT id, username, phone_number, avatar, auth_token FROM users WHERE id = ?");
+                $stmt->execute([$userId]);
+                $newUser = $stmt->fetch();
                 
                 // Debug: Log new user data
                 error_log("New user created: " . print_r($newUser, true));
                 
                 sendResponse(true, "User created and authenticated successfully", [
-                    'user' => $newUser,
-                    'token' => generateToken($userId)
+                    'user' => $newUser
                 ]);
             }
         } else {

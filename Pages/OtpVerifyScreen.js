@@ -13,7 +13,7 @@ import {
 import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
-import api from '../services/Client';
+import api, { setAuthToken } from '../services/Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function OtpVerifyScreen({ navigation }) {
@@ -108,7 +108,10 @@ export default function OtpVerifyScreen({ navigation }) {
             
             // Save user data to AsyncStorage
             await AsyncStorage.setItem('userData', JSON.stringify(response.data.data.user));
-            await AsyncStorage.setItem('authToken', response.data.data.token);
+            await AsyncStorage.setItem('authToken', response.data.data.user.auth_token);
+            
+            // Set auth token in API client
+            setAuthToken(response.data.data.user.auth_token);
           } 
           // Sometimes the user data might be directly in data
           else if (response.data.data.id) {
@@ -116,7 +119,10 @@ export default function OtpVerifyScreen({ navigation }) {
             
             // Save user data to AsyncStorage
             await AsyncStorage.setItem('userData', JSON.stringify(response.data.data));
-            await AsyncStorage.setItem('authToken', response.data.token || '');
+            await AsyncStorage.setItem('authToken', response.data.data.auth_token || '');
+            
+            // Set auth token in API client
+            setAuthToken(response.data.data.auth_token || '');
           }
           else {
             console.error('User data not found in expected locations');

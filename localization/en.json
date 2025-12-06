@@ -70,5 +70,17 @@
   "userNotAuthenticated": "User not authenticated",
   "avatarUpdatedSuccessfully": "Avatar updated successfully",
   "failedToUpdateAvatar": "Failed to update avatar",
-  "logout": "Logout"
+  "logout": "Logout",
+  "noChatsYet": "No chats yet",
+  "failedToCreateChat": "Failed to create chat",
+  "failedToSendMessage": "Failed to send message",
+  "failedToLoadContacts": "Failed to load contacts",
+  "loadingContacts": "Loading contacts...",
+  "noContactsFound": "No contacts found",
+  "selectMedia": "Select Media",
+  "chooseMediaType": "Choose the type of media to send",
+  "image": "Image",
+  "video": "Video",
+  "cancel": "Cancel",
+  "failedToSendVideo": "Failed to send video"
 }

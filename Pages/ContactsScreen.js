@@ -1,128 +1,194 @@
-import React from "react";
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  SafeAreaView,
   FlatList,
   TouchableOpacity,
-} from "react-native";
-import Header from "../components/Header";
+  Alert,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
-import Icon from "react-native-vector-icons/MaterialIcons";
-import { useNavigation } from '@react-navigation/native';
+import api from '../services/Client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const contacts = [
-  { id: '1', name: 'Jane Smith', phone: '+992 98 123 4567', status: 'gray' },
-  { id: '2', name: 'Alex Johnson', phone: '+992 98 765 4321', status: 'green' },
-  { id: '3', name: 'Maria Garcia', phone: '+992 98 111 2222', status: 'yellow' },
-  { id: '4', name: 'David Wilson', phone: '+992 98 333 4444', status: 'gray' },
-  { id: '5', name: 'Sarah Brown', phone: '+992 98 555 6666', status: 'green' },
-  { id: '6', name: 'Michael Davis', phone: '+992 98 777 8888', status: 'yellow' }
-];
-
-export default function ContactsScreen() {
+export default function ContactsScreen({ navigation }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const navigation = useNavigation();
   
-  const handleContactPress = (contact) => {
-    navigation.navigate('ContactInfo', { contact });
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState(null);
+  
+  useEffect(() => {
+    loadUserData();
+  }, []);
+  
+  useEffect(() => {
+    if (userId) {
+      loadContacts();
+    }
+  }, [userId]);
+  
+  const loadUserData = async () => {
+    try {
+      console.log('ContactsScreen: Starting to load user data from AsyncStorage...');
+      
+      const userDataString = await AsyncStorage.getItem('userData');
+      console.log('ContactsScreen: Raw userDataString from AsyncStorage:', userDataString);
+      
+      const authToken = await AsyncStorage.getItem('authToken');
+      console.log('ContactsScreen: Raw authToken from AsyncStorage:', authToken);
+      
+      if (userDataString && authToken) {
+        const user = JSON.parse(userDataString);
+        console.log('ContactsScreen: Parsed user data:', user);
+        setUserId(user.id);
+      } else {
+        console.log('ContactsScreen: Missing userData or authToken');
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
   };
   
-  const renderItem = ({ item }) => (
+  const loadContacts = async () => {
+    if (!userId) {
+      console.log('ContactsScreen: No user ID, skipping loadContacts');
+      return;
+    }
+    
+    console.log('Loading contacts for user ID:', userId);
+    try {
+      setLoading(true);
+      console.log('ContactsScreen: Making API call to get contacts for user ID:', userId);
+      
+      const response = await api.getContacts(userId);
+      
+      console.log('ContactsScreen: Received response from getContacts:', response);
+      
+      if (response.data.success) {
+        setContacts(response.data.data || []);
+      } else {
+        console.log('Failed to load contacts:', response.data.message);
+        setContacts([]);
+      }
+    } catch (error) {
+      console.error('Error loading contacts:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data,
+        status: error.response?.status,
+        headers: error.response?.headers,
+        config: error.config,
+        request: error.request
+      });
+      setContacts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const renderContactItem = ({ item }) => (
     <TouchableOpacity 
-      style={[styles.card, { backgroundColor: theme.cardBackground }]}
-      onPress={() => handleContactPress(item)}
+      style={[
+        styles.contactItem,
+        { 
+          borderBottomColor: theme.border,
+          backgroundColor: theme.cardBackground
+        }
+      ]}
+      onPress={() => {
+        // Navigate to chat with this contact
+        navigation.navigate('Chat', { 
+          contact: { id: item.contact_user_id || item.id, name: item.contact_name }
+        });
+      }}
     >
-      <View style={styles.leftSection}>
-        <View style={[styles.avatar, { backgroundColor: '#D68B1F' }]}>
-          <Text style={[styles.avatarText, { color: '#fff' }]}>{item.name[0]}</Text>
-        </View>
-        <View>
-          <Text style={[styles.name, { color: theme.text }]}>{item.name}</Text>
-          <Text style={[styles.phone, { color: theme.textSecondary }]}>{item.phone}</Text>
-        </View>
+      <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+        <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.contact_name.charAt(0)}</Text>
       </View>
-
-      <View style={[styles.statusDot, { backgroundColor: item.status }]} />
+      <View style={styles.contactInfo}>
+        <Text style={[styles.contactName, { color: theme.text }]}>{item.contact_name}</Text>
+        <Text style={[styles.contactPhone, { color: theme.textSecondary }]}>{item.contact_phone}</Text>
+      </View>
+      {item.is_favorite === 1 && (
+        <Icon name="star" size={20} color="#FFD700" />
+      )}
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Header title={t('contacts')} showSearch={true} />
-
+      
       <FlatList
         data={contacts}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={{ padding: 12 }}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={renderContactItem}
+        contentContainerStyle={styles.contactList}
+        onRefresh={loadContacts}
+        refreshing={loading}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              {t('noContactsYet')}
+            </Text>
+          </View>
+        }
       />
-
-      {/* FLOATING ADD BUTTON */}
-      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary }]}>
-        <Icon name="add" size={30} color={theme.buttonText} />
-      </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 12,
-    justifyContent: 'space-between',
-    elevation: 2
+  container: {
+    flex: 1,
   },
-  leftSection: {
+  contactList: {
+    paddingVertical: 8,
+  },
+  contactItem: {
     flexDirection: 'row',
-    alignItems: 'center'
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    alignItems: 'center',
   },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#D68B1F',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14
+    marginRight: 12,
   },
   avatarText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600'
+    fontSize: 18,
+    fontWeight: 'bold',
   },
-  name: {
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000'
   },
-  phone: {
+  contactPhone: {
     fontSize: 14,
-    color: '#777'
+    marginTop: 2,
   },
-  statusDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 50,
   },
-  /* FLOATING BUTTON */
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-    width: 55,
-    height: 55,
-    borderRadius: 35,
-    backgroundColor: "#e28a1c",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 5,
+  emptyText: {
+    fontSize: 16,
   },
 });

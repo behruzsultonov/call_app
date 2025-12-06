@@ -4,7 +4,7 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import Header from "../components/Header";
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
-import api from '../services/Client';
+import api, { setAuthToken } from '../services/Client';
 import { launchImageLibrary } from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -48,6 +48,9 @@ export default function ProfileScreen({ navigation }) {
       // Clear user data from AsyncStorage
       await AsyncStorage.removeItem('userData');
       await AsyncStorage.removeItem('authToken');
+      
+      // Clear auth token from API client
+      setAuthToken(null);
       
       // Navigate back to phone auth screen
       navigation.reset({

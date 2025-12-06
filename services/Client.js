@@ -3,6 +3,11 @@ import axios from 'axios';
 // Base URL
 const CHAT_API_URL = 'https://sadoapp.tj/callapp-be/';
 
+let authToken = null;
+
+console.log('Initializing API client with baseURL:', CHAT_API_URL);
+
+// Create axios instance
 const apiClient = axios.create({
   baseURL: CHAT_API_URL,
   timeout: 30000,
@@ -12,13 +17,41 @@ const apiClient = axios.create({
   },
 });
 
-// Debug Interceptors (можешь отключить если не надо)
+console.log('API client initialized:', apiClient);
+
+// Add request interceptor to include auth token
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('→', config.method?.toUpperCase(), config.url, config.params || config.data);
+    console.log('Interceptor called with config:', config);
+    const currentToken = getAuthToken();
+    console.log('Current auth token from getAuthToken():', currentToken);
+    console.log('Request config before processing:', config);
+    
+    // Add token to query parameters if available
+    if (currentToken) {
+      if (!config.params) {
+        config.params = {};
+      }
+      config.params.token = currentToken;
+      console.log('Adding auth token to request:', currentToken);
+    } else {
+      console.log('No auth token available for request');
+    }
+    console.log('→', config.method?.toUpperCase(), config.url, JSON.stringify(config.params || config.data, null, 2));
+    // Construct full URL for debugging
+        const fullUrl = config.baseURL + config.url;
+        const queryString = config.params ? Object.keys(config.params).map(key => 
+          `${encodeURIComponent(key)}=${encodeURIComponent(config.params[key])}`).join('&') : '';
+        const finalUrl = queryString ? `${fullUrl}?${queryString}` : fullUrl;
+        console.log('Full request URL:', finalUrl);
+        
+        console.log('Final request config:', config);
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.log('Request interceptor error:', error);
+    return Promise.reject(error);
+  }
 );
 
 apiClient.interceptors.response.use(
@@ -27,18 +60,80 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.log('API Error:', error.response?.data || error.message);
+    // Enhanced error logging
+    console.log('API Error Details:', {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      headers: error.response?.headers,
+      config: error.config ? {
+        url: error.config.baseURL + error.config.url,
+        method: error.config.method,
+        params: error.config.params,
+        headers: error.config.headers
+      } : null,
+      request: error.request ? {
+        status: error.request.status,
+        statusText: error.request.statusText,
+        responseURL: error.request.responseURL
+      } : null
+    });
+    
     return Promise.reject(error);
   }
 );
 
+// Functions to manage auth token
+const setAuthToken = (token) => {
+  console.log('Setting auth token:', token);
+  authToken = token;
+  console.log('Auth token set successfully. New token value:', authToken);
+};
+
+const getAuthToken = () => {
+  console.log('Getting auth token. Current value:', authToken);
+  return authToken;
+};
+
 const api = {};
 
+// Add a test function to verify basic connectivity
+api.testConnectivity = async () => {
+  try {
+    console.log('Testing basic connectivity...');
+    const response = await fetch(`${CHAT_API_URL}index.php?action=test`);
+    const data = await response.json();
+    console.log('Connectivity test response:', data);
+    return data;
+  } catch (error) {
+    console.log('Connectivity test error:', error);
+    throw error;
+  }
+};
+
 // ------------------ CHATS ------------------
-api.getChats = (userId) =>
-  apiClient.get('index.php', {
-    params: { action: 'chats', user_id: Number(userId) },
-  });
+api.getChats = async (userId) => {
+  try {
+    const response = await apiClient.get('index.php', {
+      params: { action: 'chats', user_id: Number(userId) },
+    });
+    return response;
+  } catch (error) {
+    console.log('API Error in getChats:', error);
+    // Try fetch as fallback
+    try {
+      console.log('Trying fetch fallback...');
+      const token = getAuthToken();
+      const response = await fetch(`${CHAT_API_URL}index.php?action=chats&user_id=${Number(userId)}&token=${encodeURIComponent(token)}`);
+      const data = await response.json();
+      return { data, status: response.status };
+    } catch (fetchError) {
+      console.log('Fetch fallback also failed:', fetchError);
+      throw error;
+    }
+  }
+};
 
 api.createChat = (data) =>
   apiClient.post('index.php?action=chats', {
@@ -81,6 +176,24 @@ api.markMessageAsRead = (messageId, userId) =>
     user_id: Number(userId),
   });
 
+// Upload image message
+api.uploadImage = (formData) => {
+  return apiClient.post('index.php?action=upload_image', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
+// Upload video message
+api.uploadVideo = (formData) => {
+  return apiClient.post('index.php?action=upload_video', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
 // ------------------ USERS ------------------
 api.getUsers = (search = null) =>
   apiClient.get('index.php', {
@@ -102,6 +215,21 @@ api.updateUser = (data) =>
 
 api.deleteUser = (data) =>
   apiClient.delete('index.php?action=users', { data });
+
+// ------------------ CONTACTS ------------------
+api.getContacts = (userId) =>
+  apiClient.get('index.php', {
+    params: { action: 'contacts', user_id: Number(userId) },
+  });
+
+api.createContact = (data) =>
+  apiClient.post('index.php?action=contacts', data);
+
+api.updateContact = (data) =>
+  apiClient.put('index.php?action=contacts', data);
+
+api.deleteContact = (data) =>
+  apiClient.delete('index.php?action=contacts', { data });
 
 // ------------------ AUTH ------------------
 api.sendOTP = (phoneNumber) => {
@@ -142,4 +270,4 @@ api.getAvatarUrl = (userId) =>
   `${CHAT_API_URL}index.php?action=avatar&user_id=${Number(userId)}`;
 
 export default api;
-export { CHAT_API_URL };
+export { CHAT_API_URL, setAuthToken, getAuthToken };

@@ -192,6 +192,7 @@ CREATE TABLE `users` (
   `phone_number` varchar(20) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
   `avatar` varchar(255) DEFAULT NULL,
+  `auth_token` varchar(255) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;

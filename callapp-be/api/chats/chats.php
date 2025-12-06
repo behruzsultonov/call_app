@@ -2,6 +2,7 @@
 // Chats API endpoints
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../lib/utils.php';
+require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
 
 // Check if database connection is available
 if (!$pdo) {
@@ -35,22 +36,19 @@ switch ($method) {
 function handleGetChats() {
     global $pdo;
     
-    // Get user ID from query parameters (this refers to the 'id' field in the users table)
-    $userId = isset($_GET['user_id']) ? (int)validateInput($_GET['user_id']) : null;
+    error_log("Handling get chats request");
     
-    if (!$userId) {
-        sendResponse(false, "User ID is required");
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    error_log("Authentication result: " . ($user ? 'success' : 'failed'));
+    if (!$user) {
+        sendResponse(false, "Authentication required");
     }
     
+    $userId = $user['id'];
+    error_log("User ID: " . $userId);
+    
     try {
-        // First, let's check if the user exists
-        $userStmt = $pdo->prepare("SELECT id, username FROM users WHERE id = ?");
-        $userStmt->execute([$userId]);
-        $user = $userStmt->fetch();
-        
-        if (!$user) {
-            sendResponse(false, "User not found with ID: " . $userId);
-        }
         
         // Simplified query to get chats for user
         $stmt = $pdo->prepare("
@@ -134,6 +132,12 @@ function handleGetChats() {
 function handleCreateChat() {
     global $pdo;
     
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
@@ -141,6 +145,11 @@ function handleCreateChat() {
     $chatType = isset($input['chat_type']) ? validateInput($input['chat_type']) : 'private';
     $createdBy = isset($input['created_by']) ? (int)validateInput($input['created_by']) : null; // This refers to the 'id' field in the users table
     $participants = isset($input['participants']) ? $input['participants'] : [];
+    
+    // Verify that the authenticated user is the same as the creator
+    if ($user['id'] != $createdBy) {
+        sendResponse(false, "User ID mismatch");
+    }
     
     if (!$chatName || !$createdBy) {
         sendResponse(false, "Chat Name and Created By are required");
@@ -195,12 +204,23 @@ function handleCreateChat() {
 function handleUpdateChat() {
     global $pdo;
     
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
     $chatId = isset($input['chat_id']) ? (int)validateInput($input['chat_id']) : null;
     $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null; // This refers to the 'id' field in the users table
     $chatName = isset($input['chat_name']) ? validateInput($input['chat_name']) : null;
+    
+    // Verify that the authenticated user is the same as the user in the request
+    if ($user['id'] != $userId) {
+        sendResponse(false, "User ID mismatch");
+    }
     
     if (!$chatId || !$userId) {
         sendResponse(false, "Chat ID and User ID are required");
@@ -232,11 +252,22 @@ function handleUpdateChat() {
 function handleDeleteChat() {
     global $pdo;
     
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
+    
     // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
     $chatId = isset($input['chat_id']) ? (int)validateInput($input['chat_id']) : null;
     $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null; // This refers to the 'id' field in the users table
+    
+    // Verify that the authenticated user is the same as the user in the request
+    if ($user['id'] != $userId) {
+        sendResponse(false, "User ID mismatch");
+    }
     
     if (!$chatId || !$userId) {
         sendResponse(false, "Chat ID and User ID are required");

@@ -79,19 +79,19 @@ const CallsScreen = ({ navigation }) => {
     },
     {
       id: "3",
-      number: "985580777",
+      number: "987654321",
       type: "outgoing",
       time: "20:34",
     },
     {
       id: "4",
-      number: "985580777",
+      number: "987654321",
       type: "incoming",
       time: "20:33",
     },
     {
       id: "5",
-      number: "985580777",
+      number: "987654321",
       type: "outgoing",
       time: "20:33",
     },
