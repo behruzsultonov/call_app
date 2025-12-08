@@ -82,5 +82,15 @@
   "image": "Тасвир",
   "video": "Видео",
   "cancel": "Бекор кардан",
-  "failedToSendVideo": "Видео фиристода нашуд"
+  "failedToSendVideo": "Видео фиристода нашуд",
+  "addContact": "Илова кардани тамос",
+  "enterContactNameOrPhone": "Рақами телефони тамосро ворид кунед",
+  "pleaseEnterContactName": "Лутфан рақами телефонро ворид кунед",
+  "userNotLoggedIn": "Корбар ворид нашудааст",
+  "contactAddedSuccessfully": "Тамос бомуваффақият илова шуд",
+  "failedToAddContact": "Илова кардани тамос ноком шуд",
+  "userNotFound": "Корбар ёфт нашуд",
+  "noContactsYet": "Ҳоло тамос нест",
+  "success": "Муваффақият",
+  "ok": "Хуб"
 }

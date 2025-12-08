@@ -4,7 +4,7 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import Header from "../components/Header";
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
-import api, { setAuthToken } from '../services/Client';
+import api, { setAuthToken, getAuthToken } from '../services/Client';
 import { launchImageLibrary } from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -27,7 +27,8 @@ export default function ProfileScreen({ navigation }) {
         
         // If user has an avatar, set it
         if (user.avatar) {
-          setAvatarUri(api.getAvatarUrl(user.id));
+          const token = await AsyncStorage.getItem('authToken');
+          setAvatarUri(api.getAvatarUrl(user.id, token));
         }
       }
     } catch (error) {
@@ -124,7 +125,7 @@ export default function ProfileScreen({ navigation }) {
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
               ) : userData && userData.avatar ? (
-                <Image source={{ uri: api.getAvatarUrl(userData.id) }} style={styles.avatarImage} />
+                <Image source={{ uri: api.getAvatarUrl(userData.id, getAuthToken()) }} style={styles.avatarImage} />
               ) : (
                 <Icon name="person" size={70} color={theme.text} />
               )}

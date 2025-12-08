@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import CountryPicker from 'react-native-country-picker-modal';
 import Header from '../components/Header';
@@ -22,12 +23,15 @@ export default function PhoneAuthScreen({ navigation }) {
   const [callingCode, setCallingCode] = useState('992');
   const [countryName, setCountryName] = useState('Tajikistan'); // Added state for country name
   const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleContinue = async () => {
     if (!phone) {
       Alert.alert(t('error'), t('pleaseEnterPhoneNumber'));
       return;
     }
+    
+    setLoading(true);
     
     const fullPhoneNumber = `+${callingCode}${phone}`;
     
@@ -43,6 +47,8 @@ export default function PhoneAuthScreen({ navigation }) {
     } catch (error) {
       console.error('Error sending OTP:', error);
       Alert.alert(t('error'), t('failedToProcessRequest'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -90,8 +96,16 @@ export default function PhoneAuthScreen({ navigation }) {
 
       <View style={[styles.bottomContainer, { backgroundColor: theme.background }]}>
         {/* Continue button */}
-        <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={handleContinue}>
-          <Text style={[styles.buttonText, { color: theme.buttonText }]}>{t('continue')}</Text>
+        <TouchableOpacity 
+          style={[styles.button, { backgroundColor: theme.primary }]} 
+          onPress={handleContinue}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={theme.buttonText} />
+          ) : (
+            <Text style={[styles.buttonText, { color: theme.buttonText }]}>{t('continue')}</Text>
+          )}
         </TouchableOpacity>
 
         <Text style={[styles.terms, { color: theme.textSecondary }]}>

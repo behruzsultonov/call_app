@@ -82,5 +82,15 @@
   "image": "Изображение",
   "video": "Видео",
   "cancel": "Отмена",
-  "failedToSendVideo": "Не удалось отправить видео"
+  "failedToSendVideo": "Не удалось отправить видео",
+  "addContact": "Добавить контакт",
+  "enterContactNameOrPhone": "Введите номер телефона контакта",
+  "pleaseEnterContactName": "Пожалуйста, введите номер телефона",
+  "userNotLoggedIn": "Пользователь не вошел в систему",
+  "contactAddedSuccessfully": "Контакт успешно добавлен",
+  "failedToAddContact": "Не удалось добавить контакт",
+  "userNotFound": "Пользователь не найден",
+  "noContactsYet": "Пока нет контактов",
+  "success": "Успех",
+  "ok": "ОК"
 }

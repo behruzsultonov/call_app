@@ -11,10 +11,15 @@ if (!$pdo) {
 
 // Get the request method
 $method = $_SERVER['REQUEST_METHOD'];
+$subaction = isset($_GET['subaction']) ? $_GET['subaction'] : '';
 
 switch ($method) {
     case 'GET':
-        handleGetContacts();
+        if ($subaction === 'add_by_phone') {
+            handleAddContactByPhone();
+        } else {
+            handleGetContacts();
+        }
         break;
         
     case 'POST':
@@ -59,6 +64,70 @@ function handleGetContacts() {
         }
     } catch (Exception $e) {
         sendResponse(false, "Error retrieving contacts: " . $e->getMessage());
+    }
+}
+
+function handleAddContactByPhone() {
+    global $pdo;
+    
+    // Authenticate request
+    $authenticatedUser = authenticateRequest($pdo);
+    if (!$authenticatedUser) {
+        sendResponse(false, "Authentication required");
+        return;
+    }
+    
+    // Get phone number from query parameters
+    $phoneNumber = isset($_GET['phone']) ? validateInput($_GET['phone']) : null;
+    $userId = isset($_GET['user_id']) ? (int)validateInput($_GET['user_id']) : null;
+    
+    if (!$phoneNumber) {
+        sendResponse(false, "Phone number is required");
+        return;
+    }
+    
+    if (!$userId) {
+        sendResponse(false, "User ID is required");
+        return;
+    }
+    
+    try {
+        // First, search for the user by phone number
+        $stmt = $pdo->prepare("SELECT id, username, phone_number FROM users WHERE phone_number = ? LIMIT 1");
+        $stmt->execute([$phoneNumber]);
+        $user = $stmt->fetch();
+        
+        if (!$user) {
+            sendResponse(false, "User not found");
+            return;
+        }
+        
+        // Check if contact already exists
+        $stmt = $pdo->prepare("SELECT id FROM contacts WHERE user_id = ? AND contact_user_id = ? LIMIT 1");
+        $stmt->execute([$userId, $user['id']]);
+        $existingContact = $stmt->fetch();
+        
+        if ($existingContact) {
+            sendResponse(false, "Contact already exists");
+            return;
+        }
+        
+        // Add the user as a contact
+        $stmt = $pdo->prepare("INSERT INTO contacts (user_id, contact_user_id, contact_name, contact_phone, is_favorite, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+        $stmt->execute([$userId, $user['id'], $user['username'], $user['phone_number'], 0]);
+        
+        // Get the created contact ID
+        $contactId = $pdo->lastInsertId();
+        
+        // Get the created contact
+        $stmt = $pdo->prepare("SELECT id, user_id, contact_user_id, contact_name, contact_phone, is_favorite, created_at, updated_at FROM contacts WHERE id = ?");
+        $stmt->execute([$contactId]);
+        $contact = $stmt->fetch();
+        
+        sendResponse(true, "Contact added successfully", $contact);
+    } catch (Exception $e) {
+        error_log("Error in handleAddContactByPhone: " . $e->getMessage());
+        sendResponse(false, "Error adding contact: " . $e->getMessage());
     }
 }
 

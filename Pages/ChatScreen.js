@@ -28,7 +28,7 @@ export default function ChatScreen({ navigation, route }) {
   
   // Get chat data from navigation params
   const { chat } = route.params || {};
-  const chatId = chat?.id || 1; // Default to chat 1 if not provided
+  const chatId = chat?.id;
   const chatName = chat?.name || 'Unknown Contact';
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export default function ChatScreen({ navigation, route }) {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || !userId) return;
+    if (!input.trim() || !userId || !chatId) return;
     
     try {
       // Create temporary message to show immediately
@@ -210,7 +210,7 @@ export default function ChatScreen({ navigation, route }) {
   };
 
   const sendImage = async (imageAsset) => {
-    if (!userId) return;
+    if (!userId || !chatId) return;
 
     try {
       // Create temporary message to show immediately
@@ -278,7 +278,7 @@ export default function ChatScreen({ navigation, route }) {
   };
 
   const sendVideo = async (videoAsset) => {
-    if (!userId) return;
+    if (!userId || !chatId) return;
 
     try {
       // Create temporary message to show immediately
@@ -476,6 +476,7 @@ export default function ChatScreen({ navigation, route }) {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ChatHeader 
+        title={chatName}
         onBackPress={() => navigation.goBack()} 
         onCallPress={() => console.log('Call pressed')}
         onVideoCallPress={() => console.log('Video call pressed')}

@@ -222,6 +222,11 @@ api.getContacts = (userId) =>
     params: { action: 'contacts', user_id: Number(userId) },
   });
 
+api.addContactByPhone = (userId, phoneNumber) =>
+  apiClient.get('index.php', {
+    params: { action: 'contacts', subaction: 'add_by_phone', user_id: Number(userId), phone: phoneNumber },
+  });
+
 api.createContact = (data) =>
   apiClient.post('index.php?action=contacts', data);
 
@@ -266,8 +271,13 @@ api.uploadAvatar = (userId, imageUri) => {
   });
 };
 
-api.getAvatarUrl = (userId) =>
-  `${CHAT_API_URL}index.php?action=avatar&user_id=${Number(userId)}`;
+api.getAvatarUrl = (userId, token = null) => {
+  const baseUrl = `${CHAT_API_URL}index.php?action=avatar&user_id=${Number(userId)}`;
+  if (token) {
+    return `${baseUrl}&token=${token}`;
+  }
+  return baseUrl;
+};
 
 export default api;
 export { CHAT_API_URL, setAuthToken, getAuthToken };

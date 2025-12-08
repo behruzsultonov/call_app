@@ -11,6 +11,7 @@ import ThemeSelectionScreen from '../Pages/ThemeSelectionScreen';
 import ContactInfoScreen from '../Pages/ContactInfoScreen';
 import CallInfoScreen from '../Pages/CallInfoScreen';
 import SplashScreen from '../Pages/SplashScreen';
+import AddContactScreen from '../Pages/AddContactScreen';
 import { WebRTCProvider } from '../contexts/WebRTCContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAuthToken } from '../services/Client';
@@ -32,6 +33,7 @@ export default function AppNavigator() {
           <Stack.Screen name="CallInfo" component={CallInfoScreen} />
           <Stack.Screen name="LanguageSelection" component={LanguageSelectionScreen} />
           <Stack.Screen name="ThemeSelection" component={ThemeSelectionScreen} />
+          <Stack.Screen name="AddContact" component={AddContactScreen} />
         </Stack.Navigator>
       </WebRTCProvider>
     </NavigationContainer>

@@ -82,5 +82,15 @@
   "image": "Image",
   "video": "Video",
   "cancel": "Cancel",
-  "failedToSendVideo": "Failed to send video"
+  "failedToSendVideo": "Failed to send video",
+  "addContact": "Add Contact",
+  "enterContactNameOrPhone": "Enter contact name or phone number",
+  "pleaseEnterContactName": "Please enter a phone number",
+  "userNotLoggedIn": "User not logged in",
+  "contactAddedSuccessfully": "Contact added successfully",
+  "failedToAddContact": "Failed to add contact",
+  "userNotFound": "User not found",
+  "noContactsYet": "No contacts yet",
+  "success": "Success",
+  "ok": "OK"
 }

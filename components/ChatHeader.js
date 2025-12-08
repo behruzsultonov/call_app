@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-export default function ChatHeader({ onBackPress, onCallPress, onVideoCallPress, onContactInfoPress }) {
+export default function ChatHeader({ title, onBackPress, onCallPress, onVideoCallPress, onContactInfoPress }) {
   return (
     <View style={styles.header}>
       
@@ -18,7 +18,7 @@ export default function ChatHeader({ onBackPress, onCallPress, onVideoCallPress,
         </View>
 
         <View style={{ marginLeft: 8 }}>
-          <Text style={styles.phone}>+992 98 55...</Text>
+          <Text style={styles.phone}>{title || '+992 98 55...'}</Text>
           <Text style={styles.status}>Just now</Text>
         </View>
       </TouchableOpacity>
