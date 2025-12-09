@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Header from "../components/Header";
 import { useTranslation } from 'react-i18next';
@@ -7,12 +7,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import api, { setAuthToken, getAuthToken } from '../services/Client';
 import { launchImageLibrary } from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetworkDiagnosticsModal from '../components/NetworkDiagnosticsModal';
 
 export default function ProfileScreen({ navigation }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const [avatarUri, setAvatarUri] = useState(null);
   const [userData, setUserData] = useState(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   
   useEffect(() => {
     loadUserData();
@@ -168,12 +170,27 @@ export default function ProfileScreen({ navigation }) {
       </View>
 
       {/* New Block: Invite Friends, Rate App, Privacy Policy */}
-      <View style={[styles.block, styles.lastBlock, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+      <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
         <MenuItem icon="person-add" color={theme.primary} label={t('inviteFriends')} theme={theme} />
         <MenuItem icon="star-border" color={theme.primary} label={t('rateApp')} theme={theme} />
         <MenuItem icon="description" color={theme.primary} label={t('privacyPolicy')} theme={theme} />
+        <MenuItem icon="bug-report" color={theme.warning} label="Network Diagnostics" theme={theme} onPress={() => setShowDiagnostics(true)} />
+      </View>
+
+      {/* Separate Block for Logout */}
+      <View style={[styles.block, styles.lastBlock, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
         <MenuItem icon="exit-to-app" color={theme.primary} label={t('logout')} theme={theme} onPress={handleLogout} />
       </View>
+
+      {/* Network Diagnostics Modal */}
+      <Modal
+        visible={showDiagnostics}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowDiagnostics(false)}
+      >
+        <NetworkDiagnosticsModal theme={theme} onClose={() => setShowDiagnostics(false)} />
+      </Modal>
     </ScrollView>
   );
 }

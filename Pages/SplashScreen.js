@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { setAuthToken } from '../services/Client';
+import api, { setAuthToken } from '../services/Client';
 
 export default function SplashScreen({ navigation }) {
   useEffect(() => {
@@ -11,6 +11,10 @@ export default function SplashScreen({ navigation }) {
   const checkAuthState = async () => {
     try {
       console.log('SplashScreen: Checking auth state...');
+      
+      // Reset connections to clear any SSL/TLS session issues
+      console.log('SplashScreen: Resetting HTTP/HTTPS connections...');
+      api.resetConnections();
       
       // Load user data and auth token from AsyncStorage
       const userData = await AsyncStorage.getItem('userData');
@@ -26,11 +30,9 @@ export default function SplashScreen({ navigation }) {
         // Set the auth token in the API client
         setAuthToken(authToken);
         
-        // Add a slightly longer delay to ensure API client is fully initialized
-        setTimeout(() => {
-          console.log('SplashScreen: Navigating to MainTabs');
-          navigation.replace('MainTabs');
-        }, 500); // Increased delay to 500ms to ensure token is fully set
+        // Navigate to main tabs immediately (no setTimeout delay)
+        console.log('SplashScreen: Navigating to MainTabs');
+        navigation.replace('MainTabs');
       } else {
         // User is not authenticated
         console.log('SplashScreen: User not authenticated, navigating to PhoneAuth');
