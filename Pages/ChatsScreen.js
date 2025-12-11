@@ -70,12 +70,16 @@ export default function ChatsScreen({ navigation }) {
         // Transform chats to match the expected format
         const formattedChats = (response.data.data || []).map(chat => ({
           id: chat.id,
-          name: chat.chat_name || 'Unknown',
+          name: chat.chat_type === 'private' && chat.other_participant_name 
+            ? chat.other_participant_name 
+            : chat.chat_name || 'Unknown',
           message: chat.last_message || '',
           time: chat.last_message_time ? 
             new Date(chat.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
             '',
           unread: chat.unread_count || 0,
+          isPrivate: chat.chat_type === 'private',
+          otherParticipantId: chat.other_participant_id
         }));
         
         setChats(formattedChats);
@@ -118,8 +122,16 @@ export default function ChatsScreen({ navigation }) {
         loadChats();
         
         // Navigate to the new chat
+        const createdChat = response.data.data;
         navigation.navigate('Chat', { 
-          chat: { id: response.data.data.id, name: response.data.data.chat_name }
+          chat: { 
+            id: createdChat.id, 
+            name: createdChat.chat_type === 'private' && createdChat.other_participant_name 
+              ? createdChat.other_participant_name 
+              : createdChat.chat_name,
+            isPrivate: createdChat.chat_type === 'private',
+            otherParticipantId: createdChat.other_participant_id
+          }
         });
       } else {
         Alert.alert(t('error'), response.data.message || t('failedToCreateChat'));
@@ -146,7 +158,13 @@ export default function ChatsScreen({ navigation }) {
         }
       ]}
       onPress={() => navigation.navigate('Chat', { 
-        chat: { id: item.id, name: item.name }
+        chat: { 
+          id: item.id, 
+          name: item.name,
+          // Pass additional data for private chats
+          isPrivate: item.isPrivate,
+          otherParticipantId: item.otherParticipantId
+        }
       })}
     >
       <View style={[styles.avatar, { backgroundColor: theme.primary }]}>

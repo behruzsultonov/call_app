@@ -25,18 +25,23 @@ export default function ChatScreen({ navigation, route }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [otherParticipantName, setOtherParticipantName] = useState(null);
   
   // Get chat data from navigation params
   const { chat } = route.params || {};
   const chatId = chat?.id;
   const chatName = chat?.name || 'Unknown Contact';
+  const isPrivateChat = chat?.isPrivate;
+  const otherParticipantId = chat?.otherParticipantId;
 
   useEffect(() => {
-    console.log('ChatScreen mounted with params:', route.params);
-    console.log('Chat ID:', chatId);
-    
     // Load user data and then messages
     loadUserData();
+    
+    // For private chats, we might want to fetch the participant name if not provided
+    if (isPrivateChat && otherParticipantId && !chatName) {
+      loadParticipantName();
+    }
   }, []);
 
   useEffect(() => {
@@ -345,6 +350,19 @@ export default function ChatScreen({ navigation, route }) {
     }
   };
 
+  const loadParticipantName = async () => {
+    if (!otherParticipantId) return;
+    
+    try {
+      const response = await api.getUser(otherParticipantId);
+      if (response.data.success && response.data.data) {
+        setOtherParticipantName(response.data.data.username);
+      }
+    } catch (error) {
+      console.error('Error loading participant name:', error);
+    }
+  };
+
   const renderMessage = ({ item }) => {
     if (item.messageType === 'image') {
       return (
@@ -370,7 +388,6 @@ export default function ChatScreen({ navigation, route }) {
             resizeMode="cover"
           />
           <View style={styles.imageMessageInfo}>
-            <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
             {item.isMe && (
               <View style={styles.statusContainer}>
                 {item.status === 'sending' && (
@@ -387,6 +404,7 @@ export default function ChatScreen({ navigation, route }) {
                 )}
               </View>
             )}
+            <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
           </View>
         </View>
       );
@@ -415,7 +433,6 @@ export default function ChatScreen({ navigation, route }) {
             </View>
           </TouchableOpacity>
           <View style={styles.imageMessageInfo}>
-            <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
             {item.isMe && (
               <View style={styles.statusContainer}>
                 {item.status === 'sending' && (
@@ -432,6 +449,7 @@ export default function ChatScreen({ navigation, route }) {
                 )}
               </View>
             )}
+            <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
           </View>
         </View>
       );
@@ -454,7 +472,6 @@ export default function ChatScreen({ navigation, route }) {
       >
         <Text style={[styles.messageText, { color: item.isMe ? theme.buttonText : theme.text }]}>{item.text}</Text>
         <View style={styles.messageInfo}>
-          <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
           {item.isMe && (
             <View style={styles.statusContainer}>
               {item.status === 'sent' && (
@@ -468,6 +485,7 @@ export default function ChatScreen({ navigation, route }) {
               )}
             </View>
           )}
+          <Text style={[styles.time, { color: item.isMe ? '#ffffffaa' : '#888' }]}>{item.time}</Text>
         </View>
       </View>
     );
@@ -476,11 +494,25 @@ export default function ChatScreen({ navigation, route }) {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ChatHeader 
-        title={chatName}
+        title={otherParticipantName || chatName}
         onBackPress={() => navigation.goBack()} 
         onCallPress={() => console.log('Call pressed')}
         onVideoCallPress={() => console.log('Video call pressed')}
-        onContactInfoPress={() => navigation.navigate('ContactInfo')}
+        onContactInfoPress={() => {
+          // Pass contact data when navigating to ContactInfo screen
+          if (isPrivateChat && otherParticipantId) {
+            navigation.navigate('ContactInfo', {
+              contact: {
+                name: otherParticipantName || chatName,
+                phone: '', // We would need to fetch this from the API
+                status: 'green',
+                id: otherParticipantId
+              }
+            });
+          } else {
+            navigation.navigate('ContactInfo');
+          }
+        }}
       />
       
       <FlatList

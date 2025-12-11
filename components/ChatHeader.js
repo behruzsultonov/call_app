@@ -17,8 +17,10 @@ export default function ChatHeader({ title, onBackPress, onCallPress, onVideoCal
           <Icon name="person" size={32} color="#fff" />
         </View>
 
-        <View style={{ marginLeft: 8 }}>
-          <Text style={styles.phone}>{title || '+992 98 55...'}</Text>
+        <View style={styles.textContainer}>
+          <Text style={styles.phone} numberOfLines={1} ellipsizeMode="tail">
+            {title || '+992 98 55...'}
+          </Text>
           <Text style={styles.status}>Just now</Text>
         </View>
       </TouchableOpacity>
@@ -58,6 +60,11 @@ const styles = StyleSheet.create({
   centerBlock: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginLeft: 8,
+  },
+
+  textContainer: {
     flex: 1,
     marginLeft: 8,
   },

@@ -14,7 +14,9 @@ export const WebRTCProvider = ({ children }) => {
   const [remoteUserId, setRemoteUserId] = useState('');
   const [remoteStream, setRemoteStream] = useState(null); // Add state for remote stream
   const [localStream, setLocalStream] = useState(null); // Add state for local stream
-  
+  const [isRecording, setIsRecording] = useState(false); // Add state for recording
+  const [recordingFilePath, setRecordingFilePath] = useState(null); // Add state for recording file path
+
   const webRTCServiceRef = useRef(null);
 
   useEffect(() => {
@@ -32,6 +34,8 @@ export const WebRTCProvider = ({ children }) => {
         webRTCServiceRef.current.onRemoteStream = handleRemoteStream;
         webRTCServiceRef.current.onCallEnded = handleCallEnded;
         webRTCServiceRef.current.onConnectionError = handleConnectionError;
+        webRTCServiceRef.current.onRecordingStarted = handleRecordingStarted;
+        webRTCServiceRef.current.onRecordingStopped = handleRecordingStopped;
 
         // Then initialize the service
         await webRTCServiceRef.current.initialize();
@@ -96,6 +100,8 @@ export const WebRTCProvider = ({ children }) => {
     setRemoteUserId('');
     setRemoteStream(null); // Clear remote stream
     setLocalStream(null); // Clear local stream
+    setIsRecording(false); // Stop recording when call ends
+    setRecordingFilePath(null); // Clear recording file path
     
     // Stop ringing when call ends
     InCallManager.stopRingtone();
@@ -114,9 +120,25 @@ export const WebRTCProvider = ({ children }) => {
     setRemoteUserId('');
     setRemoteStream(null); // Clear remote stream
     setLocalStream(null); // Clear local stream
+    setIsRecording(false); // Stop recording on error
+    setRecordingFilePath(null); // Clear recording file path
     
     // Stop ringing on connection error
     InCallManager.stopRingtone();
+  };
+
+  // Handle recording started
+  const handleRecordingStarted = (filePath) => {
+    console.log('Recording started, file path:', filePath);
+    setIsRecording(true);
+    setRecordingFilePath(filePath);
+  };
+
+  // Handle recording stopped
+  const handleRecordingStopped = (filePath, duration) => {
+    console.log('Recording stopped, file path:', filePath, 'duration:', duration);
+    setIsRecording(false);
+    // Keep the file path for reference
   };
 
   // Make a call
@@ -196,6 +218,33 @@ export const WebRTCProvider = ({ children }) => {
     return webRTCServiceRef.current.toggleCamera();
   };
 
+  // Start recording
+  const startRecording = async () => {
+    console.log('Starting recording');
+    try {
+      await webRTCServiceRef.current.startRecording();
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      throw error;
+    }
+  };
+
+  // Stop recording
+  const stopRecording = async () => {
+    console.log('Stopping recording');
+    try {
+      await webRTCServiceRef.current.stopRecording();
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      throw error;
+    }
+  };
+
+  // Get recording status
+  const getRecordingStatus = () => {
+    return webRTCServiceRef.current.getRecordingStatus();
+  };
+
   // Get user ID
   const getUserId = () => {
     return userId;
@@ -226,12 +275,17 @@ export const WebRTCProvider = ({ children }) => {
     isInCall,
     callStatus,
     remoteUserId,
+    isRecording,
+    recordingFilePath,
     makeCall,
     acceptCall,
     rejectCall,
     endCall,
     toggleMicrophone,
     toggleCamera,
+    startRecording,
+    stopRecording,
+    getRecordingStatus,
     getUserId,
     getLocalStream,
     getRemoteStream,

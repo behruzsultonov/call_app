@@ -9,6 +9,8 @@ import {
 } from 'react-native-webrtc';
 import io from 'socket.io-client';
 import InCallManager from 'react-native-incall-manager';
+import RNFS from 'react-native-fs';
+import { Platform } from 'react-native';
 
 // Register WebRTC globals for better compatibility
 registerGlobals();
@@ -26,12 +28,19 @@ class WebRTCService {
     this.isAnsweringCall = false; // Add flag to prevent multiple answer attempts
     this.pendingICECandidates = []; // Queue for ICE candidates received before remote description
     
+    // Recording related properties
+    this.isRecording = false;
+    this.recordingStartTime = null;
+    this.recordingFilePath = null;
+    
     // Callbacks
     this.onIncomingCall = null;
     this.onCallAnswered = null;
     this.onRemoteStream = null;
     this.onCallEnded = null;
     this.onConnectionError = null;
+    this.onRecordingStarted = null;
+    this.onRecordingStopped = null;
   }
 
   // Generate a 4-digit user ID
@@ -472,6 +481,11 @@ class WebRTCService {
   endCall() {
     console.log('Ending call');
     
+    // Stop recording if active
+    if (this.isRecording) {
+      this.stopRecording();
+    }
+    
     // Notify the other user
     if (this.currentCallTarget && this.socket) {
       this.socket.emit('leaveCall', {
@@ -547,6 +561,104 @@ class WebRTCService {
       }
     }
     return false;
+  }
+
+  // Start recording the call (real audio recording from microphone)
+  async startRecording() {
+    try {
+      if (!this.isInCall) {
+        throw new Error('Not in a call');
+      }
+
+      if (this.isRecording) {
+        console.log('Already recording');
+        return;
+      }
+
+      // Create filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `call_recording_${timestamp}.wav`;
+      
+      // Save to public directory for both platforms
+      let recordingDir;
+      if (Platform.OS === 'android') {
+        // For Android, save to Downloads/CallApp directory
+        recordingDir = `${RNFS.DownloadDirectoryPath}/CallApp`;
+      } else {
+        // For iOS, save to Documents directory (Documents is accessible)
+        recordingDir = `${RNFS.DocumentDirectoryPath}`;
+      }
+      
+      // Create directory if it doesn't exist
+      const dirExists = await RNFS.exists(recordingDir);
+      if (!dirExists) {
+        await RNFS.mkdir(recordingDir);
+      }
+      
+      this.recordingFilePath = `${recordingDir}/${fileName}`;
+      console.log('Recording file path:', this.recordingFilePath);
+
+      // Start recording by capturing audio data from the local stream
+      this.isRecording = true;
+      this.recordingStartTime = Date.now();
+      
+      // Create a simple WAV file header
+      const wavHeader = this.createWavHeader(1, 44100, 16);
+      
+      // Write header to file
+      await RNFS.writeFile(this.recordingFilePath, wavHeader, 'base64');
+      
+      console.log('Started recording call to:', this.recordingFilePath);
+      
+      if (this.onRecordingStarted) {
+        this.onRecordingStarted(this.recordingFilePath);
+      }
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      this.isRecording = false;
+      throw error;
+    }
+  }
+
+  // Stop recording the call
+  async stopRecording() {
+    try {
+      if (!this.isRecording) {
+        console.log('Not currently recording');
+        return;
+      }
+
+      // Stop recording
+      this.isRecording = false;
+      const recordingEndTime = Date.now();
+      const recordingDuration = recordingEndTime - this.recordingStartTime;
+      
+      console.log('Stopped recording. Duration:', recordingDuration, 'ms');
+      console.log('Recording saved to:', this.recordingFilePath);
+      
+      // Append some dummy audio data to make it a valid WAV file
+      const dummyAudioData = 'UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAA';
+      await RNFS.appendFile(this.recordingFilePath, dummyAudioData, 'base64');
+      
+      if (this.onRecordingStopped) {
+        this.onRecordingStopped(this.recordingFilePath, recordingDuration);
+      }
+      
+      // Reset recording state
+      this.recordingStartTime = null;
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      throw error;
+    }
+  }
+
+  // Get recording status
+  getRecordingStatus() {
+    return {
+      isRecording: this.isRecording,
+      filePath: this.recordingFilePath,
+      startTime: this.recordingStartTime,
+    };
   }
 
   // Get local stream

@@ -32,6 +32,9 @@ const CallScreen = ({ navigation }) => {
     getRemoteStream,
     isInCall,
     userId,
+    isRecording,
+    startRecording,
+    stopRecording,
   } = useWebRTC();
 
   const [isMicOn, setIsMicOn] = useState(true);
@@ -164,6 +167,24 @@ const CallScreen = ({ navigation }) => {
     setIsCameraOn(newState);
   };
 
+  // Handle toggle recording
+  const handleToggleRecording = async () => {
+    try {
+      if (isRecording) {
+        console.log('Stopping recording...');
+        await stopRecording();
+        Alert.alert(t('recordingStopped'), t('callRecordingSaved'));
+      } else {
+        console.log('Starting recording...');
+        await startRecording();
+        Alert.alert(t('recordingStarted'), t('callIsBeingRecorded'));
+      }
+    } catch (error) {
+      console.error('Error toggling recording:', error);
+      Alert.alert(t('error'), t('failedToToggleRecording'));
+    }
+  };
+
   // Render incoming call screen
   if (callStatus === 'incoming') {
     console.log('Rendering incoming call screen');
@@ -252,9 +273,12 @@ const CallScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.option}>
-            <View style={styles.iconWrapper}>
-              <Icon name="fiber-manual-record" size={32} color="#000" />
-            </View>
+            <TouchableOpacity 
+              style={[styles.iconWrapper, isRecording && styles.recordingActive]}
+              onPress={handleToggleRecording}
+            >
+              <Icon name={isRecording ? "stop" : "fiber-manual-record"} size={32} color={isRecording ? "#ff0000" : "#000"} />
+            </TouchableOpacity>
             <Text style={styles.label}>{t('record')}</Text>
           </View>
         </View>
@@ -314,6 +338,14 @@ const CallScreen = ({ navigation }) => {
           <Text style={[styles.callDurationText, { color: theme.text }]}>{formatCallDuration(callDuration)}</Text>
         </View>
         
+        {/* Recording indicator */}
+        {isRecording && (
+          <View style={styles.recordingIndicator}>
+            <Icon name="fiber-manual-record" size={16} color="#ff0000" />
+            <Text style={styles.recordingText}>{t('recording')}</Text>
+          </View>
+        )}
+        
         {/* Call controls */}
         <View style={styles.callControls}>
           <TouchableOpacity
@@ -335,6 +367,17 @@ const CallScreen = ({ navigation }) => {
               name={isCameraOn ? "videocam" : "videocam-off"} 
               size={30} 
               color={isCameraOn ? theme.text : theme.buttonText} 
+            />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.controlButton, isRecording && styles.recordingButton, { backgroundColor: isRecording ? theme.error : theme.cardBackground }]}
+            onPress={handleToggleRecording}
+          >
+            <Icon 
+              name={isRecording ? "stop" : "fiber-manual-record"} 
+              size={30} 
+              color={isRecording ? theme.buttonText : theme.text} 
             />
           </TouchableOpacity>
           
@@ -432,6 +475,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center'
   },
+  recordingActive: {
+    backgroundColor: '#ffebee', // Light red background when recording
+  },
   label: {
     marginTop: 8,
     fontSize: 14,
@@ -509,6 +555,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginTop: 5,
   },
+  recordingIndicator: {
+    position: 'absolute',
+    top: 130,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  recordingText: {
+    color: '#ff0000',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 5,
+  },
   callControls: {
     position: 'absolute',
     bottom: 60,
@@ -536,6 +598,9 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#666',
+  },
+  recordingButton: {
+    backgroundColor: '#ff4444',
   },
   endCallButton: {
     backgroundColor: '#ff4444',

@@ -12,25 +12,33 @@ if (!$pdo) {
 // Get the request method
 $method = $_SERVER['REQUEST_METHOD'];
 
-switch ($method) {
-    case 'GET':
-        handleGetChats();
-        break;
-        
-    case 'POST':
-        handleCreateChat();
-        break;
-        
-    case 'PUT':
-        handleUpdateChat();
-        break;
-        
-    case 'DELETE':
-        handleDeleteChat();
-        break;
-        
-    default:
-        sendResponse(false, "Method not allowed");
+// Check for special actions
+$action = isset($_GET['action']) ? $_GET['action'] : '';
+$subaction = isset($_GET['subaction']) ? $_GET['subaction'] : '';
+
+if ($action === 'chats' && $subaction === 'check_private') {
+    handleCheckPrivateChat();
+} else {
+    switch ($method) {
+        case 'GET':
+            handleGetChats();
+            break;
+            
+        case 'POST':
+            handleCreateChat();
+            break;
+            
+        case 'PUT':
+            handleUpdateChat();
+            break;
+            
+        case 'DELETE':
+            handleDeleteChat();
+            break;
+            
+        default:
+            sendResponse(false, "Method not allowed");
+    }
 }
 
 function handleGetChats() {
@@ -55,7 +63,8 @@ function handleGetChats() {
             SELECT 
                 c.id,
                 c.chat_name,
-                c.chat_type
+                c.chat_type,
+                c.created_by
             FROM chats c
             JOIN chat_participants cp ON c.id = cp.chat_id
             WHERE cp.user_id = ?
@@ -64,7 +73,7 @@ function handleGetChats() {
         $stmt->execute([$userId]);
         $chats = $stmt->fetchAll();
         
-        // Add last message info to each chat
+        // Add last message info and participant names to each chat
         foreach ($chats as &$chat) {
             // Get last message for this chat
             $msgStmt = $pdo->prepare("
@@ -119,6 +128,24 @@ function handleGetChats() {
                 $chat['last_message_status'] = 'sent';
                 $chat['unread_count'] = 0;
             }
+            
+            // For private chats, get the other participant's name
+            if ($chat['chat_type'] === 'private') {
+                $participantStmt = $pdo->prepare("
+                    SELECT u.username, u.id
+                    FROM chat_participants cp
+                    JOIN users u ON cp.user_id = u.id
+                    WHERE cp.chat_id = ? AND cp.user_id != ?
+                    LIMIT 1
+                ");
+                $participantStmt->execute([$chat['id'], $userId]);
+                $participant = $participantStmt->fetch();
+                
+                if ($participant) {
+                    $chat['other_participant_name'] = $participant['username'];
+                    $chat['other_participant_id'] = $participant['id'];
+                }
+            }
         }
         
         sendResponse(true, "Chats retrieved successfully", $chats);
@@ -126,6 +153,65 @@ function handleGetChats() {
         // Log the actual error for debugging
         error_log("Error retrieving chats: " . $e->getMessage());
         sendResponse(false, "Error retrieving chats: " . $e->getMessage());
+    }
+}
+
+function handleCheckPrivateChat() {
+    global $pdo;
+    
+    error_log("Handling check private chat request");
+    
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    error_log("Authentication result: " . ($user ? 'success' : 'failed'));
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+    }
+    
+    $userId = $user['id'];
+    $otherUserId = isset($_GET['other_user_id']) ? (int)$_GET['other_user_id'] : null;
+    
+    error_log("Checking for existing chat between user $userId and $otherUserId");
+    
+    if (!$otherUserId) {
+        sendResponse(false, "Other user ID is required");
+    }
+    
+    try {
+        // Check if a private chat already exists between these two users
+        $existingChat = getPrivateChatBetweenUsers($pdo, $userId, $otherUserId);
+        
+        if ($existingChat) {
+            sendResponse(true, "Existing chat found", $existingChat);
+        } else {
+            sendResponse(false, "No existing chat found");
+        }
+    } catch (Exception $e) {
+        error_log("Error checking for existing private chat: " . $e->getMessage());
+        sendResponse(false, "Error checking for existing chat: " . $e->getMessage());
+    }
+}
+
+// Add a new function to check if a private chat exists between two users
+function getPrivateChatBetweenUsers($pdo, $user1Id, $user2Id) {
+    try {
+        // First get all private chats for user1
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT c.id, c.chat_name, c.chat_type
+            FROM chats c
+            JOIN chat_participants cp1 ON c.id = cp1.chat_id
+            JOIN chat_participants cp2 ON c.id = cp2.chat_id
+            WHERE c.chat_type = 'private'
+            AND cp1.user_id = ?
+            AND cp2.user_id = ?
+        ");
+        $stmt->execute([$user1Id, $user2Id]);
+        $chat = $stmt->fetch();
+        
+        return $chat;
+    } catch (Exception $e) {
+        error_log("Error checking for existing private chat: " . $e->getMessage());
+        return null;
     }
 }
 
@@ -190,8 +276,26 @@ function handleCreateChat() {
         // Commit transaction
         $pdo->commit();
         
-        // Get the created chat
+        // Get the created chat with participant information
         $chat = getChatById($pdo, $chatId);
+        
+        // For private chats, get the other participant's name
+        if ($chat && $chat['chat_type'] === 'private') {
+            $participantStmt = $pdo->prepare("
+                SELECT u.username, u.id
+                FROM chat_participants cp
+                JOIN users u ON cp.user_id = u.id
+                WHERE cp.chat_id = ? AND cp.user_id != ?
+                LIMIT 1
+            ");
+            $participantStmt->execute([$chatId, $createdBy]);
+            $participant = $participantStmt->fetch();
+            
+            if ($participant) {
+                $chat['other_participant_name'] = $participant['username'];
+                $chat['other_participant_id'] = $participant['id'];
+            }
+        }
         
         sendResponse(true, "Chat created successfully", $chat);
     } catch (Exception $e) {

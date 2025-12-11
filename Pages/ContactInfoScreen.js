@@ -1,94 +1,214 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useRoute } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
+import api from '../services/Client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ContactInfoScreen({ navigation }) {
   const route = useRoute();
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const { contact } = route.params || {};
   
+  const [contactData, setContactData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState(null);
+  
   // Default contact data if none provided (for direct navigation)
-  const displayContact = contact || {
+  const displayContact = contactData || contact || {
     name: 'Jane Smith',
     phone: '+992 98 558 0777',
     status: 'green'
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+  useEffect(() => {
+    loadUserData();
+    
+    if (contact && contact.id && !contact.phone) {
+      loadContactDetails(contact.id);
+    } else if (contact) {
+      setContactData(contact);
+    }
+  }, [contact]);
+
+  const loadUserData = async () => {
+    try {
+      const userDataString = await AsyncStorage.getItem('userData');
+      if (userDataString) {
+        const user = JSON.parse(userDataString);
+        setUserId(user.id);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
+  const loadContactDetails = async (contactId) => {
+    try {
+      setLoading(true);
+      // Fetch contact details from API
+      const response = await api.getUser(contactId);
       
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.cardBackground, elevation: theme.elevation }]}>
+      if (response.data.success && response.data.data) {
+        const userData = response.data.data;
+        setContactData({
+          name: userData.username || contact.name,
+          phone: userData.phone_number || contact.phone || '+992 98 558 0777',
+          status: contact.status || 'green',
+          id: contactId
+        });
+      }
+    } catch (error) {
+      console.error('Error loading contact details:', error);
+      // Fallback to provided contact data
+      setContactData(contact);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createChatWithContact = async () => {
+    if (!userId || !displayContact.id) {
+      Alert.alert('Error', 'Unable to create chat. Missing user or contact information.');
+      return;
+    }
+
+    try {
+      // First, check if a private chat already exists with this contact
+      const checkResponse = await api.checkPrivateChat(userId, displayContact.id);
+      
+      if (checkResponse.data.success) {
+        // An existing chat was found, navigate to it
+        const existingChat = checkResponse.data.data;
+        navigation.navigate('Chat', { 
+          chat: { 
+            id: existingChat.id, 
+            name: displayContact.name,
+            isPrivate: true,
+            otherParticipantId: displayContact.id
+          }
+        });
+      } else {
+        // No existing chat found, create a new one
+        const chatData = {
+          chat_name: displayContact.name,
+          chat_type: 'private',
+          created_by: userId,
+          participants: [userId, displayContact.id]
+        };
+        
+        const response = await api.createChat(chatData);
+        
+        if (response.data.success) {
+          // Navigate to the newly created chat
+          navigation.navigate('Chat', { 
+            chat: { 
+              id: response.data.data.id, 
+              name: displayContact.name,
+              isPrivate: true,
+              otherParticipantId: displayContact.id
+            }
+          });
+        } else {
+          Alert.alert('Error', response.data.message || 'Failed to create chat');
+        }
+      }
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      Alert.alert('Error', 'Failed to create chat');
+    }
+  };
+
+  return (
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
+      
+      {/* Header with proper shadow */}
+      <View style={[styles.header, { backgroundColor: theme.cardBackground }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Icon name="arrow-back" size={26} color={theme.primary} />
         </TouchableOpacity>
 
         <TouchableOpacity>
-          <Icon name="add" size={26} color={theme.primary} />
+          <Icon name="more-vert" size={26} color={theme.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* Avatar + Info + Actions */}
-      <View style={[styles.mainBlock, { backgroundColor: theme.cardBackground, elevation: theme.elevation }]}>
-        {/* Center part */}
+      {/* Avatar + Info + Actions - Combined in one block */}
+      <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+        {/* Center part - Avatar without green circle */}
         <View style={styles.center}>
           <View style={[styles.avatar, { backgroundColor: theme.success }]}>
             <Icon name="person" size={60} color={theme.buttonText} />
-            <View style={[styles.statusCircle, { 
-              backgroundColor: displayContact.status === 'green' ? theme.success : 
-                             displayContact.status === 'yellow' ? '#FFD700' : theme.textSecondary,
-              borderColor: theme.cardBackground
-            }]} />
+            {/* Removed the green status circle */}
           </View>
 
-          <Text style={[styles.phone, { color: theme.text }]}>{displayContact.phone}</Text>
+          {/* Show name instead of phone number here */}
+          <Text style={[styles.phone, { color: theme.text }]}>{displayContact.name}</Text>
           <Text style={[styles.timeAgo, { color: theme.textSecondary }]}>1 min. ago</Text>
         </View>
 
-        {/* Actions */}
+        {/* Actions with circular backgrounds */}
         <View style={[styles.actionsRow, { backgroundColor: theme.cardBackground }]}>
           <View style={styles.actionItem}>
-            <View style={[styles.actionIcon, { backgroundColor: theme.cardBackground }]}>
-              <Icon name="chat-bubble" size={28} color={theme.primary} />
-            </View>
-            <Text style={[styles.actionLabel, { color: theme.primary }]}>chat</Text>
+            <TouchableOpacity onPress={createChatWithContact}>
+              <View style={[styles.circularActionIcon, { backgroundColor: "#fdf1e4" }]}>
+                <Icon name="chat-bubble" size={28} color="#e88a17" />
+              </View>
+            </TouchableOpacity>
+            <Text style={[styles.actionLabel, { color: theme.primary }]}>{t('chat')}</Text>
           </View>
 
           <View style={styles.actionItem}>
-            <View style={[styles.actionIcon, { backgroundColor: theme.cardBackground }]}>
-              <Icon name="call" size={28} color={theme.primary} />
-            </View>
-            <Text style={[styles.actionLabel, { color: theme.primary }]}>call</Text>
+            <TouchableOpacity>
+              <View style={[styles.circularActionIcon, { backgroundColor: "#fdf1e4" }]}>
+                <Icon name="call" size={28} color="#e88a17" />
+              </View>
+            </TouchableOpacity>
+            <Text style={[styles.actionLabel, { color: theme.primary }]}>{t('call')}</Text>
           </View>
 
           <View style={styles.actionItem}>
-            <View style={[styles.actionIcon, { backgroundColor: theme.cardBackground }]}>
-              <Icon name="videocam" size={28} color={theme.primary} />
-            </View>
-            <Text style={[styles.actionLabel, { color: theme.primary }]}>video</Text>
+            <TouchableOpacity>
+              <View style={[styles.circularActionIcon, { backgroundColor: "#fdf1e4" }]}>
+                <Icon name="videocam" size={28} color="#e88a17" />
+              </View>
+            </TouchableOpacity>
+            <Text style={[styles.actionLabel, { color: theme.primary }]}>{t('video')}</Text>
           </View>
         </View>
       </View>
 
-      {/* Other blocks */}
-      <View style={[styles.block, { backgroundColor: theme.cardBackground, elevation: theme.elevation }]}>
-        <Text style={[styles.blockTitle, { color: theme.text }]}>main</Text>
-        <Text style={[styles.blockPhone, { color: theme.primary }]}>{displayContact.phone}</Text>
+      {/* Main info block with phone number below text */}
+      <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+        <View style={styles.infoItem}>
+          <Text style={[styles.infoLabel, { color: theme.text }]}>{t('phone')}</Text>
+        </View>
+        <Text style={[styles.phoneNumber, { color: theme.primary }]}>{displayContact.phone}</Text>
       </View>
 
-      <View style={[styles.block, { backgroundColor: theme.cardBackground, elevation: theme.elevation }]}>
-        <Text style={[styles.blockLink, { color: theme.primary }]}>Shared Media</Text>
-        <View style={[styles.divider, { backgroundColor: theme.border }]} />
-        <Text style={[styles.blockLink, { color: theme.primary, marginTop: 10 }]}>Notifications</Text>
+      {/* Shared media and notifications block without arrows */}
+      <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.menuText, { color: theme.text }]}>{t('sharedMedia')}</Text>
+        </TouchableOpacity>
+        
+        <View style={[styles.separator, { borderBottomColor: theme.border }]} />
+        
+        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.menuText, { color: theme.text }]}>{t('notifications')}</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Block User */}
-      <View style={[styles.block, { backgroundColor: theme.cardBackground, elevation: theme.elevation, marginTop: 10 }]}>
-        <Text style={[styles.blockUser, { color: theme.error }]}>Block user</Text>
+      {/* Block User - Separate block without icon */}
+      <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+        <TouchableOpacity style={[styles.dangerItem, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.dangerText, { color: theme.error }]}>{t('blockUser')}</Text>
+        </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -105,12 +225,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    // Add shadow for Android
+    elevation: 4,
+    // Add shadow for iOS
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+  },
+
+  block: {
+    backgroundColor: "#fff",
+    marginTop: 12,
+    marginHorizontal: 15,
+    borderRadius: 10,
+    overflow: "hidden",
+    // Add shadow for Android
     elevation: 3,
+    // Add shadow for iOS
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
   },
 
   center: {
     alignItems: "center",
     marginTop: 20,
+    padding: 15,
   },
 
   avatar: {
@@ -147,31 +295,26 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  mainBlock: {
-    backgroundColor: "#fff",
-    marginHorizontal: 12,
-    borderRadius: 10,
-    marginTop: 10,
-    elevation: 3,
-    paddingBottom: 20,
-  },
-
   actionsRow: {
     flexDirection: "row",
     justifyContent: "space-around",
     marginTop: 22,
     backgroundColor: "#fff",
     paddingVertical: 15,
+    paddingHorizontal: 15,
   },
 
   actionItem: {
     alignItems: "center",
   },
 
-  actionIcon: {
-    backgroundColor: "#fdf1e4",
-    padding: 12,
-    borderRadius: 30,
+  circularActionIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#fdf1e4", // Light orange with transparency
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   actionLabel: {
@@ -180,41 +323,52 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  block: {
-    backgroundColor: "#fff",
-    padding: 15,
-    marginTop: 10,
-    marginHorizontal: 12,
-    borderRadius: 10,
-    elevation: 3,
+  infoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 15,
   },
 
-  blockTitle: {
+  infoLabel: {
     fontSize: 16,
-    fontWeight: "500",
-    color: "#000",
+    flex: 1,
   },
 
-  blockPhone: {
-    marginTop: 5,
+  phoneNumber: {
     fontSize: 16,
     color: "#e88a17",
+    paddingHorizontal: 15,
+    paddingBottom: 15,
   },
 
-  blockLink: {
-    fontSize: 16,
-    color: "#e88a17",
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 15,
   },
 
-  blockUser: {
+  menuText: {
     fontSize: 16,
-    color: "red",
+    flex: 1,
+  },
+
+  dangerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 15,
+  },
+
+  dangerText: {
+    fontSize: 16,
     fontWeight: "600",
   },
 
-  divider: {
+  separator: {
     height: 1,
-    backgroundColor: "#e0e0e0",
-    marginVertical: 10,
+    borderBottomWidth: 1,
+    marginHorizontal: 15,
   },
 });

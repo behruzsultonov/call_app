@@ -244,6 +244,25 @@ api.getChats = async (userId) => {
   }
 };
 
+api.checkPrivateChat = async (userId, otherUserId) => {
+  try {
+    console.log('api.checkPrivateChat: Checking for existing chat between', userId, 'and', otherUserId);
+    const response = await apiClient.get('index.php', {
+      params: { 
+        action: 'chats', 
+        subaction: 'check_private',
+        other_user_id: Number(otherUserId),
+        user_id: Number(userId)  // This will be used for authentication
+      },
+    });
+    console.log('api.checkPrivateChat: Response:', response);
+    return response;
+  } catch (error) {
+    console.log('API Error in checkPrivateChat:', error.message);
+    throw error;
+  }
+};
+
 api.createChat = (data) =>
   apiClient.post('index.php?action=chats', {
     chat_name: data.chat_name,

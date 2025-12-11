@@ -95,27 +95,55 @@ export default function ContactsScreen({ navigation }) {
   
   const navigateToChat = async (contact) => {
     try {
-      // First, try to find an existing chat with this contact
-      // For now, we'll create a new chat with the contact
-      const chatData = {
-        chat_name: contact.contact_name,
-        chat_type: 'private',
-        created_by: userId,
-        participants: [userId, contact.contact_user_id]
-      };
+      // First, check if a private chat already exists with this contact
+      console.log('Checking for existing chat with contact:', contact);
       
-      const response = await api.createChat(chatData);
+      const checkResponse = await api.checkPrivateChat(userId, contact.contact_user_id);
       
-      if (response.data.success) {
-        // Navigate to the newly created chat
+      console.log('Check private chat response:', checkResponse);
+      
+      if (checkResponse.data.success) {
+        // An existing chat was found, navigate to it
+        const existingChat = checkResponse.data.data;
+        console.log('Found existing chat:', existingChat);
+        
         navigation.navigate('Chat', { 
-          chat: { id: response.data.data.id, name: contact.contact_name }
+          chat: { 
+            id: existingChat.id, 
+            name: contact.contact_name,
+            isPrivate: true,
+            otherParticipantId: contact.contact_user_id
+          }
         });
       } else {
-        Alert.alert(t('error'), response.data.message || t('failedToCreateChat'));
+        // No existing chat found, create a new one
+        console.log('No existing chat found, creating new chat');
+        
+        const chatData = {
+          chat_name: contact.contact_name,
+          chat_type: 'private',
+          created_by: userId,
+          participants: [userId, contact.contact_user_id]
+        };
+        
+        const response = await api.createChat(chatData);
+        
+        if (response.data.success) {
+          // Navigate to the newly created chat
+          navigation.navigate('Chat', { 
+            chat: { 
+              id: response.data.data.id, 
+              name: contact.contact_name,
+              isPrivate: true,
+              otherParticipantId: contact.contact_user_id
+            }
+          });
+        } else {
+          Alert.alert(t('error'), response.data.message || t('failedToCreateChat'));
+        }
       }
     } catch (error) {
-      console.error('Error creating chat:', error);
+      console.error('Error navigating to chat:', error);
       Alert.alert(t('error'), t('failedToCreateChat'));
     }
   };
@@ -129,7 +157,17 @@ export default function ContactsScreen({ navigation }) {
           backgroundColor: theme.cardBackground
         }
       ]}
-      onPress={() => navigateToChat(item)}
+      onPress={() => {
+        // Navigate to ContactInfo screen with contact data
+        navigation.navigate('ContactInfo', {
+          contact: {
+            id: item.contact_user_id,
+            name: item.contact_name,
+            phone: item.contact_phone,
+            status: 'green' // Default status, could be enhanced later
+          }
+        });
+      }}
     >
       <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
         <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.contact_name.charAt(0)}</Text>
