@@ -58,16 +58,20 @@ function handleGetChats() {
     
     try {
         
-        // Simplified query to get chats for user
+        // Query to get chats for user, excluding deleted chats
         $stmt = $pdo->prepare("
             SELECT 
                 c.id,
                 c.chat_name,
                 c.chat_type,
-                c.created_by
+                c.created_by,
+                c.is_deleted_for_everyone
             FROM chats c
             JOIN chat_participants cp ON c.id = cp.chat_id
+            LEFT JOIN chat_deletion_status cds ON c.id = cds.chat_id AND cp.user_id = cds.user_id
             WHERE cp.user_id = ?
+            AND (c.is_deleted_for_everyone = 0 OR c.is_deleted_for_everyone IS NULL)
+            AND (cds.is_deleted_for_me IS NULL OR cds.is_deleted_for_me = 0)
             ORDER BY c.created_at DESC
         ");
         $stmt->execute([$userId]);
@@ -195,6 +199,23 @@ function handleCheckPrivateChat() {
 // Add a new function to check if a private chat exists between two users
 function getPrivateChatBetweenUsers($pdo, $user1Id, $user2Id) {
     try {
+        // Validate that both users exist
+        $userCheckStmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+        $userCheckStmt->execute([$user1Id]);
+        $user1Exists = $userCheckStmt->fetch();
+        
+        if (!$user1Exists) {
+            return null;
+        }
+        
+        $userCheckStmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+        $userCheckStmt->execute([$user2Id]);
+        $user2Exists = $userCheckStmt->fetch();
+        
+        if (!$user2Exists) {
+            return null;
+        }
+        
         // First get all private chats for user1
         $stmt = $pdo->prepare("
             SELECT DISTINCT c.id, c.chat_name, c.chat_type
@@ -262,9 +283,19 @@ function handleCreateChat() {
         ");
         $stmt->execute([$chatId, $createdBy]);
         
-        // Add other participants
+        // Add other participants with validation
         foreach ($participants as $participantId) {
             if ($participantId != $createdBy) { // Don't add creator again
+                // Validate that the user exists before adding them as a participant
+                $userCheckStmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+                $userCheckStmt->execute([(int)$participantId]);
+                $userExists = $userCheckStmt->fetch();
+                
+                if (!$userExists) {
+                    $pdo->rollback();
+                    sendResponse(false, "Invalid participant ID: User does not exist");
+                }
+                
                 $stmt = $pdo->prepare("
                     INSERT INTO chat_participants (chat_id, user_id, is_admin, joined_at) 
                     VALUES (?, ?, 0, NOW())
@@ -367,6 +398,7 @@ function handleDeleteChat() {
     
     $chatId = isset($input['chat_id']) ? (int)validateInput($input['chat_id']) : null;
     $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null; // This refers to the 'id' field in the users table
+    $deleteForEveryone = isset($input['delete_for_everyone']) ? (bool)$input['delete_for_everyone'] : false;
     
     // Verify that the authenticated user is the same as the user in the request
     if ($user['id'] != $userId) {
@@ -378,16 +410,64 @@ function handleDeleteChat() {
     }
     
     try {
-        // Check if user is admin of the chat
-        if (!isUserAdmin($pdo, $userId, $chatId)) {
-            sendResponse(false, "User is not authorized to delete this chat");
+        // Check if user is a participant in this chat
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as count 
+            FROM chat_participants 
+            WHERE chat_id = ? AND user_id = ?
+        ");
+        $stmt->execute([$chatId, $userId]);
+        $result = $stmt->fetch();
+        
+        if ($result['count'] == 0) {
+            sendResponse(false, "User is not a participant in this chat");
         }
         
-        // Delete chat (will cascade delete related records)
-        $stmt = $pdo->prepare("DELETE FROM chats WHERE id = ?");
-        $stmt->execute([$chatId]);
-        
-        sendResponse(true, "Chat deleted successfully");
+        // For "Delete for everyone", we need to check if user is admin or the only participant
+        if ($deleteForEveryone) {
+            // Check if this is a private chat
+            $stmt = $pdo->prepare("SELECT chat_type FROM chats WHERE id = ?");
+            $stmt->execute([$chatId]);
+            $chat = $stmt->fetch();
+            
+            if (!$chat) {
+                sendResponse(false, "Chat not found");
+            }
+            
+            // For private chats, either participant can delete for everyone
+            // For group chats, only admins can delete for everyone
+            if ($chat['chat_type'] === 'private') {
+                // Check if user is a participant in this private chat (already checked above)
+            } else {
+                // For group chats, check if user is admin
+                if (!isUserAdmin($pdo, $userId, $chatId)) {
+                    sendResponse(false, "Only admins can delete group chats for everyone");
+                }
+            }
+            
+            // Mark chat as deleted for everyone
+            $stmt = $pdo->prepare("
+                UPDATE chats 
+                SET is_deleted_for_everyone = 1, updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$chatId]);
+            
+            sendResponse(true, "Chat deleted for everyone");
+        } else {
+            // Delete for current user only
+            // Insert or update the chat_deletion_status table
+            $stmt = $pdo->prepare("
+                INSERT INTO chat_deletion_status (chat_id, user_id, is_deleted_for_me, deleted_at)
+                VALUES (?, ?, 1, NOW())
+                ON DUPLICATE KEY UPDATE 
+                is_deleted_for_me = 1, 
+                deleted_at = NOW()
+            ");
+            $stmt->execute([$chatId, $userId]);
+            
+            sendResponse(true, "Chat deleted for you");
+        }
     } catch (Exception $e) {
         sendResponse(false, "Error deleting chat: " . $e->getMessage());
     }

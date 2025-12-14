@@ -18,7 +18,9 @@ function sendResponse($success, $message, $data = null) {
 }
 
 function validateInput($input) {
-    return htmlspecialchars(trim($input));
+    // Trim whitespace and handle UTF-8 characters properly
+    // Use ENT_QUOTES | ENT_HTML5 flags to preserve emojis and other UTF-8 characters
+    return htmlspecialchars(trim($input), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 }
 
 // Check if user is in chat

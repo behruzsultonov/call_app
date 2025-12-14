@@ -277,6 +277,7 @@ function handleDeleteMessage() {
     
     $messageId = isset($input['message_id']) ? (int)validateInput($input['message_id']) : null;
     $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null; // This refers to the 'id' field in the users table
+    $deleteForEveryone = isset($input['delete_for_everyone']) ? (bool)$input['delete_for_everyone'] : false;
     
     // Verify that the authenticated user is the same as the user in the request
     if ($user['id'] != $userId) {
@@ -288,29 +289,44 @@ function handleDeleteMessage() {
     }
     
     try {
-        // Check if user is admin of the chat containing this message
+        // Check if user is the sender of the message or an admin
         $stmt = $pdo->prepare("
-            SELECT cp.chat_id 
+            SELECT m.sender_id, cp.is_admin
             FROM messages m
             JOIN chat_participants cp ON m.chat_id = cp.chat_id
-            WHERE m.id = ? AND cp.user_id = ? AND cp.is_admin = 1
+            WHERE m.id = ? AND cp.user_id = ?
         ");
         $stmt->execute([$messageId, $userId]);
         $result = $stmt->fetch();
         
         if (!$result) {
-            sendResponse(false, "User is not authorized to delete this message");
+            sendResponse(false, "Message not found or user is not a participant in this chat");
         }
         
-        // Delete message for everyone
-        $stmt = $pdo->prepare("
-            UPDATE messages 
-            SET is_deleted_for_everyone = 1, message_text = '[deleted]'
-            WHERE id = ?
-        ");
-        $stmt->execute([$messageId]);
+        // For "delete for everyone", only allow if user is the sender or an admin
+        if ($deleteForEveryone && $result['sender_id'] != $userId && !$result['is_admin']) {
+            sendResponse(false, "User is not authorized to delete this message for everyone");
+        }
         
-        sendResponse(true, "Message deleted successfully");
+        if ($deleteForEveryone) {
+            // Delete message for everyone (just update the status, don't change the text)
+            $stmt = $pdo->prepare("
+                UPDATE messages 
+                SET is_deleted_for_everyone = 1
+                WHERE id = ?
+            ");
+            $stmt->execute([$messageId]);
+            sendResponse(true, "Message deleted for everyone");
+        } else {
+            // Delete message for current user only
+            $stmt = $pdo->prepare("
+                UPDATE messages 
+                SET is_deleted_for_me = 1
+                WHERE id = ?
+            ");
+            $stmt->execute([$messageId]);
+            sendResponse(true, "Message deleted for you");
+        }
     } catch (Exception $e) {
         sendResponse(false, "Error deleting message: " . $e->getMessage());
     }

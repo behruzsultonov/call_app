@@ -35,20 +35,12 @@ export default function ContactsScreen({ navigation }) {
   
   const loadUserData = async () => {
     try {
-      console.log('ContactsScreen: Starting to load user data from AsyncStorage...');
-      
       const userDataString = await AsyncStorage.getItem('userData');
-      console.log('ContactsScreen: Raw userDataString from AsyncStorage:', userDataString);
-      
       const authToken = await AsyncStorage.getItem('authToken');
-      console.log('ContactsScreen: Raw authToken from AsyncStorage:', authToken);
       
       if (userDataString && authToken) {
         const user = JSON.parse(userDataString);
-        console.log('ContactsScreen: Parsed user data:', user);
         setUserId(user.id);
-      } else {
-        console.log('ContactsScreen: Missing userData or authToken');
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -56,19 +48,11 @@ export default function ContactsScreen({ navigation }) {
   };
   
   const loadContacts = async () => {
-    if (!userId) {
-      console.log('ContactsScreen: No user ID, skipping loadContacts');
-      return;
-    }
+    if (!userId) return;
     
-    console.log('Loading contacts for user ID:', userId);
     try {
       setLoading(true);
-      console.log('ContactsScreen: Making API call to get contacts for user ID:', userId);
-      
       const response = await api.getContacts(userId);
-      
-      console.log('ContactsScreen: Received response from getContacts:', response);
       
       if (response.data.success) {
         setContacts(response.data.data || []);
@@ -93,61 +77,47 @@ export default function ContactsScreen({ navigation }) {
     }
   };
   
-  const navigateToChat = async (contact) => {
-    try {
-      // First, check if a private chat already exists with this contact
-      console.log('Checking for existing chat with contact:', contact);
-      
-      const checkResponse = await api.checkPrivateChat(userId, contact.contact_user_id);
-      
-      console.log('Check private chat response:', checkResponse);
-      
-      if (checkResponse.data.success) {
-        // An existing chat was found, navigate to it
-        const existingChat = checkResponse.data.data;
-        console.log('Found existing chat:', existingChat);
-        
-        navigation.navigate('Chat', { 
-          chat: { 
-            id: existingChat.id, 
-            name: contact.contact_name,
-            isPrivate: true,
-            otherParticipantId: contact.contact_user_id
-          }
-        });
-      } else {
-        // No existing chat found, create a new one
-        console.log('No existing chat found, creating new chat');
-        
-        const chatData = {
-          chat_name: contact.contact_name,
-          chat_type: 'private',
-          created_by: userId,
-          participants: [userId, contact.contact_user_id]
-        };
-        
-        const response = await api.createChat(chatData);
-        
-        if (response.data.success) {
-          // Navigate to the newly created chat
-          navigation.navigate('Chat', { 
-            chat: { 
-              id: response.data.data.id, 
-              name: contact.contact_name,
-              isPrivate: true,
-              otherParticipantId: contact.contact_user_id
-            }
-          });
-        } else {
-          Alert.alert(t('error'), response.data.message || t('failedToCreateChat'));
+  const handleLongPressContact = (contact) => {
+    Alert.alert(
+      t('deleteContact'),
+      t('deleteContactConfirmation'),
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel'
+        },
+        {
+          text: t('delete'),
+          onPress: () => deleteContact(contact.id),
+          style: 'destructive'
         }
-      }
-    } catch (error) {
-      console.error('Error navigating to chat:', error);
-      Alert.alert(t('error'), t('failedToCreateChat'));
-    }
+      ],
+      { cancelable: true }
+    );
   };
   
+  const deleteContact = async (contactId) => {
+    if (!userId) return;
+    
+    try {
+      const response = await api.deleteContact({
+        contact_id: contactId // This is now the correct contact record ID
+      });
+      
+      if (response.data.success) {
+        // Remove the contact from the list
+        setContacts(prevContacts => prevContacts.filter(contact => contact.id !== contactId));
+        console.log('Contact deleted successfully');
+      } else {
+        console.log('Failed to delete contact:', response.data.message);
+        Alert.alert(t('error'), response.data.message || t('failedToDeleteContact'));
+      }
+    } catch (error) {
+      console.log('Error deleting contact:', error);
+      Alert.alert(t('error'), t('failedToDeleteContact'));
+    }
+  };
+
   const renderContactItem = ({ item }) => (
     <TouchableOpacity 
       style={[
@@ -161,13 +131,15 @@ export default function ContactsScreen({ navigation }) {
         // Navigate to ContactInfo screen with contact data
         navigation.navigate('ContactInfo', {
           contact: {
-            id: item.contact_user_id,
+            id: item.id, // This is the actual contact record ID
+            contact_user_id: item.contact_user_id, // This is the user ID of the contact
             name: item.contact_name,
             phone: item.contact_phone,
             status: 'green' // Default status, could be enhanced later
           }
         });
       }}
+      onLongPress={() => handleLongPressContact(item)}
     >
       <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
         <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.contact_name.charAt(0)}</Text>

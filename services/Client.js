@@ -322,6 +322,14 @@ api.uploadVideo = (formData) => {
   });
 };
 
+// Upload audio message
+api.uploadAudio = (formData) => {
+  return apiClient.post('index.php?action=upload_audio', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
 // ------------------ USERS ------------------
 api.getUsers = (search = null) =>
   apiClient.get('index.php', {

@@ -2,16 +2,15 @@
 -- version 4.9.7
 -- https://www.phpmyadmin.net/
 --
--- Хост: localhost
--- Время создания: Дек 03 2025 г., 12:59
--- Версия сервера: 8.0.34-26-beget-1-1
--- Версия PHP: 5.6.40
+-- Host: localhost
+-- Generation Time: Dec 03 2025 at 12:59 PM
+-- Server version: 8.0.34-26-beget-1-1
+-- PHP Version: 5.6.40
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET AUTOCOMMIT = 0;
 START TRANSACTION;
 SET time_zone = "+00:00";
-
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -19,15 +18,13 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- База данных: `k98108ya_callapp`
+-- Database: `k98108ya_callapp`
 --
 
 -- --------------------------------------------------------
 
 --
--- Структура таблицы `blocked_contacts`
---
--- Создание: Ноя 24 2025 г., 04:31
+-- Table structure for table `blocked_contacts`
 --
 
 DROP TABLE IF EXISTS `blocked_contacts`;
@@ -37,14 +34,12 @@ CREATE TABLE `blocked_contacts` (
   `blocked_user_id` int NOT NULL,
   `blocked_phone` varchar(20) DEFAULT NULL,
   `blocked_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 --
--- Структура таблицы `call_history`
---
--- Создание: Ноя 28 2025 г., 04:21
+-- Table structure for table `call_history`
 --
 
 DROP TABLE IF EXISTS `call_history`;
@@ -56,15 +51,12 @@ CREATE TABLE `call_history` (
   `call_status` enum('completed','missed','rejected','failed') NOT NULL,
   `duration` int DEFAULT '0',
   `call_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 --
--- Структура таблицы `chats`
---
--- Создание: Ноя 24 2025 г., 04:31
--- Последнее обновление: Дек 03 2025 г., 09:24
+-- Table structure for table `chats`
 --
 
 DROP TABLE IF EXISTS `chats`;
@@ -74,11 +66,13 @@ CREATE TABLE `chats` (
   `chat_type` enum('private','group') DEFAULT 'private',
   `created_by` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_deleted_for_everyone` tinyint(1) DEFAULT '0',
+  `is_deleted_for_me` tinyint(1) DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Дамп данных таблицы `chats`
+-- Dumping data for table `chats`
 --
 
 INSERT INTO `chats` (`id`, `chat_name`, `chat_type`, `created_by`, `created_at`) VALUES
@@ -89,10 +83,7 @@ INSERT INTO `chats` (`id`, `chat_name`, `chat_type`, `created_by`, `created_at`)
 -- --------------------------------------------------------
 
 --
--- Структура таблицы `chat_participants`
---
--- Создание: Ноя 24 2025 г., 04:31
--- Последнее обновление: Дек 03 2025 г., 09:24
+-- Table structure for table `chat_participants`
 --
 
 DROP TABLE IF EXISTS `chat_participants`;
@@ -103,10 +94,10 @@ CREATE TABLE `chat_participants` (
   `joined_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `left_at` timestamp NULL DEFAULT NULL,
   `is_admin` tinyint(1) DEFAULT '0'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Дамп данных таблицы `chat_participants`
+-- Dumping data for table `chat_participants`
 --
 
 INSERT INTO `chat_participants` (`id`, `chat_id`, `user_id`, `joined_at`, `left_at`, `is_admin`) VALUES
@@ -115,9 +106,7 @@ INSERT INTO `chat_participants` (`id`, `chat_id`, `user_id`, `joined_at`, `left_
 -- --------------------------------------------------------
 
 --
--- Структура таблицы `contacts`
---
--- Создание: Ноя 28 2025 г., 04:11
+-- Table structure for table `contacts`
 --
 
 DROP TABLE IF EXISTS `contacts`;
@@ -130,15 +119,12 @@ CREATE TABLE `contacts` (
   `is_favorite` tinyint(1) DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 --
--- Структура таблицы `messages`
---
--- Создание: Ноя 24 2025 г., 04:31
--- Последнее обновление: Дек 03 2025 г., 09:24
+-- Table structure for table `messages`
 --
 
 DROP TABLE IF EXISTS `messages`;
@@ -156,15 +142,12 @@ CREATE TABLE `messages` (
   `is_deleted_for_everyone` tinyint(1) DEFAULT '0',
   `is_deleted_for_me` tinyint(1) DEFAULT '0',
   `sent_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 --
--- Структура таблицы `message_receipts`
---
--- Создание: Ноя 24 2025 г., 04:31
--- Последнее обновление: Дек 03 2025 г., 09:24
+-- Table structure for table `message_receipts`
 --
 
 DROP TABLE IF EXISTS `message_receipts`;
@@ -174,15 +157,12 @@ CREATE TABLE `message_receipts` (
   `user_id` int NOT NULL,
   `receipt_type` enum('delivered','seen') DEFAULT 'delivered',
   `received_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 --
--- Структура таблицы `users`
---
--- Создание: Ноя 28 2025 г., 04:21
--- Последнее обновление: Дек 03 2025 г., 09:33
+-- Table structure for table `users`
 --
 
 DROP TABLE IF EXISTS `users`;
@@ -195,10 +175,10 @@ CREATE TABLE `users` (
   `auth_token` varchar(255) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Дамп данных таблицы `users`
+-- Dumping data for table `users`
 --
 
 INSERT INTO `users` (`id`, `username`, `phone_number`, `email`, `avatar`, `created_at`) VALUES
@@ -207,10 +187,7 @@ INSERT INTO `users` (`id`, `username`, `phone_number`, `email`, `avatar`, `creat
 -- --------------------------------------------------------
 
 --
--- Структура таблицы `user_settings`
---
--- Создание: Ноя 24 2025 г., 04:31
--- Последнее обновление: Дек 03 2025 г., 09:24
+-- Table structure for table `user_settings`
 --
 
 DROP TABLE IF EXISTS `user_settings`;
@@ -224,28 +201,30 @@ CREATE TABLE `user_settings` (
   `speakerphone` tinyint(1) DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Дамп данных таблицы `user_settings`
+-- Dumping data for table `user_settings`
 --
 
 INSERT INTO `user_settings` (`id`, `user_id`, `language`, `theme`, `ringtone`, `vibration`, `speakerphone`, `created_at`) VALUES
 (1, 1, 'en', 'dark', 'default', 1, 0, '2025-11-24 04:31:02');
 
+-- --------------------------------------------------------
+
 --
--- Индексы сохранённых таблиц
+-- Indexes for dumped tables
 --
 
 --
--- Индексы таблицы `blocked_contacts`
+-- Indexes for table `blocked_contacts`
 --
 ALTER TABLE `blocked_contacts`
   ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- Индексы таблицы `call_history`
+-- Indexes for table `call_history`
 --
 ALTER TABLE `call_history`
   ADD PRIMARY KEY (`id`),
@@ -254,14 +233,14 @@ ALTER TABLE `call_history`
   ADD KEY `idx_call_history_call_time` (`call_time`);
 
 --
--- Индексы таблицы `chats`
+-- Indexes for table `chats`
 --
 ALTER TABLE `chats`
   ADD PRIMARY KEY (`id`),
   ADD KEY `created_by` (`created_by`);
 
 --
--- Индексы таблицы `chat_participants`
+-- Indexes for table `chat_participants`
 --
 ALTER TABLE `chat_participants`
   ADD PRIMARY KEY (`id`),
@@ -270,14 +249,14 @@ ALTER TABLE `chat_participants`
   ADD KEY `idx_chat_participants_user_id` (`user_id`);
 
 --
--- Индексы таблицы `contacts`
+-- Indexes for table `contacts`
 --
 ALTER TABLE `contacts`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_contacts_user_id` (`user_id`);
 
 --
--- Индексы таблицы `messages`
+-- Indexes for table `messages`
 --
 ALTER TABLE `messages`
   ADD PRIMARY KEY (`id`),
@@ -287,7 +266,7 @@ ALTER TABLE `messages`
   ADD KEY `idx_messages_reply_to` (`reply_to`);
 
 --
--- Индексы таблицы `message_receipts`
+-- Indexes for table `message_receipts`
 --
 ALTER TABLE `message_receipts`
   ADD PRIMARY KEY (`id`),
@@ -296,14 +275,14 @@ ALTER TABLE `message_receipts`
   ADD KEY `idx_message_receipts_user_id` (`user_id`);
 
 --
--- Индексы таблицы `users`
+-- Indexes for table `users`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `phone_number` (`phone_number`);
 
 --
--- Индексы таблицы `user_settings`
+-- Indexes for table `user_settings`
 --
 ALTER TABLE `user_settings`
   ADD PRIMARY KEY (`id`),
@@ -311,94 +290,94 @@ ALTER TABLE `user_settings`
   ADD KEY `idx_user_settings_user_id` (`user_id`);
 
 --
--- AUTO_INCREMENT для сохранённых таблиц
+-- AUTO_INCREMENT for dumped tables
 --
 
 --
--- AUTO_INCREMENT для таблицы `blocked_contacts`
+-- AUTO_INCREMENT for table `blocked_contacts`
 --
 ALTER TABLE `blocked_contacts`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT для таблицы `call_history`
+-- AUTO_INCREMENT for table `call_history`
 --
 ALTER TABLE `call_history`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT для таблицы `chats`
+-- AUTO_INCREMENT for table `chats`
 --
 ALTER TABLE `chats`
   MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
--- AUTO_INCREMENT для таблицы `chat_participants`
+-- AUTO_INCREMENT for table `chat_participants`
 --
 ALTER TABLE `chat_participants`
   MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
--- AUTO_INCREMENT для таблицы `contacts`
+-- AUTO_INCREMENT for table `contacts`
 --
 ALTER TABLE `contacts`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT для таблицы `messages`
+-- AUTO_INCREMENT for table `messages`
 --
 ALTER TABLE `messages`
   MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
--- AUTO_INCREMENT для таблицы `message_receipts`
+-- AUTO_INCREMENT for table `message_receipts`
 --
 ALTER TABLE `message_receipts`
   MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
--- AUTO_INCREMENT для таблицы `users`
+-- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
   MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
--- AUTO_INCREMENT для таблицы `user_settings`
+-- AUTO_INCREMENT for table `user_settings`
 --
 ALTER TABLE `user_settings`
   MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
--- AUTO_INCREMENT для таблицы `sms_codes`
+-- AUTO_INCREMENT for table `sms_codes`
 --
 ALTER TABLE `sms_codes`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
--- Ограничения внешнего ключа сохраненных таблиц
+-- Constraints for dumped tables
 --
 
 --
--- Ограничения внешнего ключа таблицы `blocked_contacts`
+-- Constraints for table `blocked_contacts`
 --
 ALTER TABLE `blocked_contacts`
   ADD CONSTRAINT `blocked_contacts_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Ограничения внешнего ключа таблицы `chats`
+-- Constraints for table `chats`
 --
 ALTER TABLE `chats`
   ADD CONSTRAINT `chats_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 
 --
--- Ограничения внешнего ключа таблицы `chat_participants`
+-- Constraints for table `chat_participants`
 --
 ALTER TABLE `chat_participants`
   ADD CONSTRAINT `chat_participants_ibfk_1` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `chat_participants_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Ограничения внешнего ключа таблицы `messages`
+-- Constraints for table `messages`
 --
 ALTER TABLE `messages`
   ADD CONSTRAINT `messages_ibfk_1` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`id`) ON DELETE CASCADE,
@@ -406,23 +385,23 @@ ALTER TABLE `messages`
   ADD CONSTRAINT `messages_ibfk_3` FOREIGN KEY (`reply_to`) REFERENCES `messages` (`id`) ON DELETE SET NULL;
 
 --
--- Ограничения внешнего ключа таблицы `message_receipts`
+-- Constraints for table `message_receipts`
 --
 ALTER TABLE `message_receipts`
   ADD CONSTRAINT `message_receipts_ibfk_1` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `message_receipts_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Ограничения внешнего ключа таблицы `user_settings`
+-- Constraints for table `user_settings`
 --
 ALTER TABLE `user_settings`
   ADD CONSTRAINT `user_settings_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 -- --------------------------------------------------------
 --
--- Структура таблицы `sms_codes`
+-- Table structure for table `sms_codes`
 --
--- Создание: Дек 03 2025 г., 12:59
+-- Creation: Dec 03 2025 at 12:59 PM
 --
 
 DROP TABLE IF EXISTS `sms_codes`;
@@ -436,7 +415,7 @@ CREATE TABLE `sms_codes` (
   PRIMARY KEY (`id`),
   KEY `idx_phone_number` (`phone_number`),
   KEY `idx_expires_at` (`expires_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 COMMIT;
 

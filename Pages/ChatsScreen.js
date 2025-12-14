@@ -166,6 +166,7 @@ export default function ChatsScreen({ navigation }) {
           otherParticipantId: item.otherParticipantId
         }
       })}
+      onLongPress={() => handleLongPressChat(item)}
     >
       <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
         <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.name.charAt(0)}</Text>
@@ -186,6 +187,52 @@ export default function ChatsScreen({ navigation }) {
       </View>
     </TouchableOpacity>
   );
+
+  const handleLongPressChat = (chat) => {
+    Alert.alert(
+      t('deleteChat'),
+      t('deleteChatConfirmation'),
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel'
+        },
+        {
+          text: t('deleteForMe'),
+          onPress: () => deleteChat(chat.id, false)
+        },
+        {
+          text: t('deleteForEveryone'),
+          onPress: () => deleteChat(chat.id, true)
+        }
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const deleteChat = async (chatId, deleteForEveryone = false) => {
+    if (!userId) return;
+    
+    try {
+      const response = await api.deleteChat({
+        chat_id: chatId,
+        user_id: userId,
+        delete_for_everyone: deleteForEveryone
+      });
+      
+      if (response.data.success) {
+        // Remove the chat from the list
+        setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
+        console.log('Chat deleted successfully');
+      } else {
+        console.log('Failed to delete chat:', response.data.message);
+        Alert.alert(t('error'), response.data.message || t('failedToDeleteChat'));
+      }
+    } catch (error) {
+      console.log('Error deleting chat:', error);
+      Alert.alert(t('error'), t('failedToDeleteChat'));
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>

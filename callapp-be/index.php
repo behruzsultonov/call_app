@@ -39,6 +39,10 @@ switch ($action) {
         require_once __DIR__ . '/api/messages/upload_video.php';
         break;
         
+    case 'upload_audio':
+        require_once __DIR__ . '/api/messages/upload_audio.php';
+        break;
+        
     case 'messages_read':
         require_once __DIR__ . '/api/messages/messages_read.php';
         break;

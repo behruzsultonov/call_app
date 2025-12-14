@@ -58,7 +58,8 @@ export default function ContactInfoScreen({ navigation }) {
           name: userData.username || contact.name,
           phone: userData.phone_number || contact.phone || '+992 98 558 0777',
           status: contact.status || 'green',
-          id: contactId
+          id: contactId,
+          contact_user_id: contact.contact_user_id || contactId // Preserve the contact_user_id
         });
       }
     } catch (error) {
@@ -71,14 +72,17 @@ export default function ContactInfoScreen({ navigation }) {
   };
 
   const createChatWithContact = async () => {
-    if (!userId || !displayContact.id) {
+    // Use the contact_user_id instead of id for chat operations
+    const contactUserId = displayContact.contact_user_id || displayContact.id;
+    
+    if (!userId || !contactUserId) {
       Alert.alert('Error', 'Unable to create chat. Missing user or contact information.');
       return;
     }
 
     try {
       // First, check if a private chat already exists with this contact
-      const checkResponse = await api.checkPrivateChat(userId, displayContact.id);
+      const checkResponse = await api.checkPrivateChat(userId, contactUserId);
       
       if (checkResponse.data.success) {
         // An existing chat was found, navigate to it
@@ -88,7 +92,7 @@ export default function ContactInfoScreen({ navigation }) {
             id: existingChat.id, 
             name: displayContact.name,
             isPrivate: true,
-            otherParticipantId: displayContact.id
+            otherParticipantId: contactUserId
           }
         });
       } else {
@@ -97,7 +101,7 @@ export default function ContactInfoScreen({ navigation }) {
           chat_name: displayContact.name,
           chat_type: 'private',
           created_by: userId,
-          participants: [userId, displayContact.id]
+          participants: [userId, contactUserId]
         };
         
         const response = await api.createChat(chatData);
@@ -109,7 +113,7 @@ export default function ContactInfoScreen({ navigation }) {
               id: response.data.data.id, 
               name: displayContact.name,
               isPrivate: true,
-              otherParticipantId: displayContact.id
+              otherParticipantId: contactUserId
             }
           });
         } else {
@@ -122,6 +126,48 @@ export default function ContactInfoScreen({ navigation }) {
     }
   };
 
+  const deleteContact = async () => {
+    if (!userId || !displayContact.id) {
+      Alert.alert('Error', 'Unable to delete contact. Missing user or contact information.');
+      return;
+    }
+
+    Alert.alert(
+      t('deleteContact'),
+      t('deleteContactConfirmation'),
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel'
+        },
+        {
+          text: t('delete'),
+          onPress: async () => {
+            try {
+              // Delete the contact using the contact record ID
+              const response = await api.deleteContact({
+                contact_id: displayContact.id // This is now the correct contact record ID
+              });
+              
+              if (response.data.success) {
+                // Navigate back to contacts screen
+                navigation.goBack();
+                Alert.alert(t('success'), t('contactDeleted'));
+              } else {
+                Alert.alert('Error', response.data.message || t('failedToDeleteContact'));
+              }
+            } catch (error) {
+              console.error('Error deleting contact:', error);
+              Alert.alert('Error', t('failedToDeleteContact'));
+            }
+          },
+          style: 'destructive'
+        }
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       
@@ -131,7 +177,7 @@ export default function ContactInfoScreen({ navigation }) {
           <Icon name="arrow-back" size={26} color={theme.primary} />
         </TouchableOpacity>
 
-        <TouchableOpacity>
+        <TouchableOpacity onPress={deleteContact}>
           <Icon name="more-vert" size={26} color={theme.primary} />
         </TouchableOpacity>
       </View>
@@ -202,12 +248,24 @@ export default function ContactInfoScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Block User - Separate block without icon */}
+      {/* Block User and Delete Contact - Combined block without icons */}
       <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
         <TouchableOpacity style={[styles.dangerItem, { borderBottomColor: theme.border }]}>
           <Text style={[styles.dangerText, { color: theme.error }]}>{t('blockUser')}</Text>
         </TouchableOpacity>
+        
+        <View style={[styles.separator, { borderBottomColor: theme.border }]} />
+        
+        <TouchableOpacity 
+          style={[styles.dangerItem, { borderBottomColor: theme.border }]}
+          onPress={deleteContact}
+        >
+          <Text style={[styles.dangerText, { color: theme.error }]}>{t('deleteContact')}</Text>
+        </TouchableOpacity>
       </View>
+      
+      {/* Add bottom padding to create space at the end of the scroll view */}
+      <View style={{ height: 20 }} />
     </ScrollView>
   );
 }
