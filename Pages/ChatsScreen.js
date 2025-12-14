@@ -68,19 +68,31 @@ export default function ChatsScreen({ navigation }) {
       
       if (response.data.success) {
         // Transform chats to match the expected format
-        const formattedChats = (response.data.data || []).map(chat => ({
-          id: chat.id,
-          name: chat.chat_type === 'private' && chat.other_participant_name 
-            ? chat.other_participant_name 
-            : chat.chat_name || 'Unknown',
-          message: chat.last_message || '',
-          time: chat.last_message_time ? 
-            new Date(chat.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
-            '',
-          unread: chat.unread_count || 0,
-          isPrivate: chat.chat_type === 'private',
-          otherParticipantId: chat.other_participant_id
-        }));
+        const formattedChats = (response.data.data || []).map(chat => {
+          // Translate message types
+          let displayMessage = chat.last_message || '';
+          if (displayMessage === 'Image') {
+            displayMessage = t('image');
+          } else if (displayMessage === 'Video') {
+            displayMessage = t('video');
+          } else if (displayMessage === 'Voice Message') {
+            displayMessage = t('voiceMessage');
+          }
+          
+          return {
+            id: chat.id,
+            name: chat.chat_type === 'private' && chat.other_participant_name 
+              ? chat.other_participant_name 
+              : chat.chat_name || 'Unknown',
+            message: displayMessage,
+            time: chat.last_message_time ? 
+              new Date(chat.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+              '',
+            unread: chat.unread_count || 0,
+            isPrivate: chat.chat_type === 'private',
+            otherParticipantId: chat.other_participant_id
+          };
+        });
         
         setChats(formattedChats);
       } else {

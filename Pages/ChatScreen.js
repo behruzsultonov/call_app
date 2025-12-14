@@ -24,7 +24,7 @@ import Video from 'react-native-video';
 import RNFS from 'react-native-fs';
 import { PermissionsAndroid, Platform } from 'react-native';
 import Sound from 'react-native-nitro-sound';
-
+import AudioWaveform from '../components/AudioWaveform';
 export default function ChatScreen({ navigation, route }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -42,7 +42,8 @@ export default function ChatScreen({ navigation, route }) {
   const [recording, setRecording] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  
+  const [playingAudioId, setPlayingAudioId] = useState(null); // Track currently playing audio message
+    const [audioProgress, setAudioProgress] = useState({}); // Track progress of audio messages
   // Get chat data from navigation params
   const { chat } = route.params || {};
   const chatId = chat?.id;
@@ -67,6 +68,22 @@ export default function ChatScreen({ navigation, route }) {
       loadMessages();
     }
   }, [chatId, userId]); // Add userId to dependency array to ensure reload when it changes
+
+  // Add useEffect to clean up audio when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clean up any playing audio when component unmounts
+      if (playingAudioId !== null) {
+        try {
+          Sound.stopPlayer();
+          Sound.removePlayBackListener();
+          Sound.removePlaybackEndListener();
+        } catch (error) {
+          console.log('Error cleaning up audio playback:', error);
+        }
+      }
+    };
+  }, [playingAudioId]);
 
   const loadUserData = async () => {
     try {
@@ -544,50 +561,62 @@ export default function ChatScreen({ navigation, route }) {
                   borderWidth: 1,
                   borderColor: theme.border,
                 }),
-                flexDirection: 'row',
-                alignItems: 'center',
-                maxWidth: '80%',
-                paddingVertical: 8,
-                paddingHorizontal: 12,
               }
             ]}
           >
-            <TouchableOpacity 
-              style={{ 
-                padding: 5,
-                marginRight: 10,
-              }}
-              onPress={() => playAudioMessage(item.audioUrl)}
-            >
-              <Icon 
-                name="play-arrow" 
-                size={24} 
-                color={item.isMe ? theme.buttonText : theme.text} 
-              />
-            </TouchableOpacity>
-            
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.messageText, { 
-                color: item.isMe ? theme.buttonText : theme.text,
-                fontStyle: 'italic'
-              }]}>
-                {t('voiceMessage')}
-              </Text>
+            {/* Audio message content - Text-like layout with waveform and play icon */}
+            <View style={styles.textLikeAudioContainer}>
+              <View style={styles.audioContentRow}>
+                <TouchableOpacity 
+                  style={[
+                    styles.audioPlayButton,
+                    {
+                      backgroundColor: item.isMe 
+                        ? 'rgba(255, 255, 255, 0.2)' 
+                        : 'rgba(0, 0, 0, 0.1)'
+                    }
+                  ]}
+                  onPress={() => playAudioMessage(item.audioUrl, item.id)}
+                >
+                  <Icon 
+                    name={playingAudioId === item.id ? "pause" : "play-arrow"} 
+                    size={24} 
+                    color={item.isMe ? theme.buttonText : theme.text} 
+                  />
+                </TouchableOpacity>
+                
+                <View style={styles.audioWaveformContainer}>
+                  <AudioWaveform 
+                    isPlaying={playingAudioId === item.id}
+                    duration={audioProgress[item.id]?.duration || 0}
+                    currentTime={audioProgress[item.id]?.currentTime || 0}
+                    color={item.isMe ? theme.buttonText : theme.text}
+                    backgroundColor={item.isMe ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.1)'}
+                    seed={item.id}
+                    waveformBars={20}
+                    time={item.time}
+                    status={item.status}
+                    isMyMessage={item.isMe}
+                    theme={theme}
+                  />
+                </View>
+              </View>
               
+              {/* Time and status - positioned like text messages */}
               <View style={styles.messageInfo}>
                 {item.isMe && (
                   <View style={styles.statusContainer}>
                     {item.status === 'sending' && (
-                      <Icon name="schedule" size={16} color={item.isMe ? '#ffffffaa' : '#888'} />
+                      <Icon name="schedule" size={16} color="#ffffffaa" />
                     )}
                     {item.status === 'sent' && (
-                      <Icon name="done" size={16} color={item.isMe ? '#ffffffaa' : '#888'} />
+                      <Icon name="done" size={16} color="#ffffffaa" />
                     )}
                     {item.status === 'delivered' && (
-                      <Icon name="done-all" size={16} color={item.isMe ? '#cccccc' : '#888'} />
+                      <Icon name="done-all" size={16} color="#cccccc" />
                     )}
                     {item.status === 'read' && (
-                      <Icon name="done-all" size={16} color={item.isMe ? '#4FC3F7' : '#888'} />
+                      <Icon name="done-all" size={16} color="#4FC3F7" />
                     )}
                   </View>
                 )}
@@ -598,7 +627,6 @@ export default function ChatScreen({ navigation, route }) {
         </TouchableWithoutFeedback>
       );
     }
-
     return (      <TouchableWithoutFeedback onLongPress={() => handleLongPressMessage(item)}>
         <View
           style={[
@@ -663,13 +691,12 @@ export default function ChatScreen({ navigation, route }) {
     const imageUrls = messages
       .filter(message => message.messageType === 'image' && message.imageUrl)
       .map((message, index) => {
-        console.log('Mapping image message to URL:', message);
         // For react-native-image-viewing, we need to return objects with a 'uri' property
         return { 
           uri: message.imageUrl
         };
       });
-    
+      
     console.log('Image URLs for viewer:', imageUrls);
     return imageUrls;
   };
@@ -931,11 +958,33 @@ export default function ChatScreen({ navigation, route }) {
     }
   };
 
-  const playAudioMessage = async (audioUrl) => {
+  const playAudioMessage = async (audioUrl, messageId) => {
     try {
+      // If this is the same message that's currently playing, pause it
+      if (playingAudioId === messageId) {
+        await Sound.pausePlayer();
+        setPlayingAudioId(null);
+        return;
+      }
+      
+      // If another audio is playing, stop it first
+      if (playingAudioId !== null) {
+        await Sound.stopPlayer();
+        Sound.removePlayBackListener();
+        Sound.removePlaybackEndListener();
+      }
+      
       // Set up playback progress listener
       Sound.addPlayBackListener((e) => {
         console.log('Playback progress:', e.currentPosition, e.duration);
+        // Update progress for this message
+        setAudioProgress(prev => ({
+          ...prev,
+          [messageId]: {
+            currentTime: e.currentPosition,
+            duration: e.duration
+          }
+        }));
       });
 
       // Set up playback end listener
@@ -944,18 +993,27 @@ export default function ChatScreen({ navigation, route }) {
         // Clean up listeners when playback completes
         Sound.removePlayBackListener();
         Sound.removePlaybackEndListener();
+        setPlayingAudioId(null);
+        // Reset progress for this message
+        setAudioProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[messageId];
+          return newProgress;
+        });
       });
 
       // Start playback
       const result = await Sound.startPlayer(audioUrl);
       console.log('Playback started:', result);
+      
+      // Mark this message as playing
+      setPlayingAudioId(messageId);
     } catch (error) {
       console.error('Error playing audio:', error);
       Alert.alert(t('error'), t('failedToPlayAudio'));
+      setPlayingAudioId(null);
     }
-  };
-
-  return (
+  };  return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ChatHeader 
         title={otherParticipantName || chatName}
@@ -1143,10 +1201,17 @@ export default function ChatScreen({ navigation, route }) {
                   backgroundColor: 'red',
                   marginRight: 5
                 }} />
-                <Text style={{ color: 'red', fontSize: 12 }}>{`${recordingTime || 0}s`}</Text>
+                <Text style={{ color: 'red', fontSize: 12, marginRight: 8 }}>{`${recordingTime || 0}s`}</Text>
+                {/* Show live waveform during recording */}
+                {/* <AudioWaveform 
+                  isPlaying={true}
+                  waveformBars={15}
+                  color="#ff0000"
+                  backgroundColor="rgba(255, 255, 255, 0.3)"
+                  seed={Date.now()}
+                /> */}
               </View>
-            ) : (
-              <Icon name="mic" size={24} color={theme.textSecondary} />
+            ) : (              <Icon name="mic" size={24} color={theme.textSecondary} />
             )}
           </TouchableOpacity>        </View>
       </View>
@@ -1168,7 +1233,7 @@ const styles = StyleSheet.create({
   },
 
   messageContainer: {
-    maxWidth: '80%',
+    maxWidth: '90%',
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 18,
@@ -1265,6 +1330,30 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 
+  // Text-like audio message styles
+  textLikeAudioContainer: {
+    flexDirection: 'column',
+  },
+
+  audioContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  audioPlayButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+
+  audioWaveformContainer: {
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1337,28 +1426,6 @@ const styles = StyleSheet.create({
   },
 
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

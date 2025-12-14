@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E5E5E5',
     alignItems: 'center',
-    paddingTop: 100
+    paddingTop: 80 // Adjusted for reduced height of orange panel
   },
   content: {
     flex: 1,
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#D68B1F',
-    paddingVertical: 20,
+    paddingVertical: 10, // Reduced height of orange panel
     alignItems: 'center',
     zIndex: 10,
   },

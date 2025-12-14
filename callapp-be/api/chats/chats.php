@@ -81,7 +81,7 @@ function handleGetChats() {
         foreach ($chats as &$chat) {
             // Get last message for this chat
             $msgStmt = $pdo->prepare("
-                SELECT message_text, sent_at, sender_id
+                SELECT message_text, sent_at, sender_id, message_type
                 FROM messages 
                 WHERE chat_id = ? AND is_deleted_for_everyone = 0
                 ORDER BY sent_at DESC 
@@ -91,7 +91,17 @@ function handleGetChats() {
             $lastMessage = $msgStmt->fetch();
             
             if ($lastMessage) {
-                $chat['last_message'] = $lastMessage['message_text'];
+                // Display appropriate text based on message type
+                if ($lastMessage['message_type'] == 'image') {
+                    $chat['last_message'] = 'Image';
+                } else if ($lastMessage['message_type'] == 'video') {
+                    $chat['last_message'] = 'Video';
+                } else if ($lastMessage['message_type'] == 'audio') {
+                    $chat['last_message'] = 'Voice Message';
+                } else {
+                    $chat['last_message'] = $lastMessage['message_text'];
+                }
+                
                 $chat['last_message_time'] = $lastMessage['sent_at'];
                 $chat['last_message_sender_id'] = $lastMessage['sender_id'];
                 
