@@ -22,6 +22,7 @@ export default function ChatsScreen({ navigation }) {
   
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [manualRefresh, setManualRefresh] = useState(false); // New state to track manual refresh
   const [userId, setUserId] = useState(null);
   const appState = useRef(AppState.currentState);
   
@@ -29,17 +30,23 @@ export default function ChatsScreen({ navigation }) {
     loadUserData();
   }, []);
   
+  useEffect(() => {
+    if (userId) {
+      loadChatsData();
+    }
+  }, [userId]);
+  
   // Simplified polling implementation for real-time updates
   useEffect(() => {
     const loadChats = () => {
       if (userId) {
-        loadChatsData();
+        loadChatsData(false); // Pass false to indicate this is not a manual refresh
       }
     };
 
     const refreshChats = () => {
       if (userId) {
-        loadChatsData();
+        loadChatsData(false); // Pass false to indicate this is not a manual refresh
       }
     };
 
@@ -58,7 +65,9 @@ export default function ChatsScreen({ navigation }) {
     }, 5000);
 
     return () => {
-      subscription.remove();
+      if (subscription && subscription.remove) {
+        subscription.remove();
+      }
       clearInterval(intervalId);
     };
   }, [userId]);
@@ -68,12 +77,8 @@ export default function ChatsScreen({ navigation }) {
       const userDataString = await AsyncStorage.getItem('userData');
       const authToken = await AsyncStorage.getItem('authToken');
       
-      console.log('ChatsScreen: Loaded user data from AsyncStorage:', userDataString);
-      console.log('ChatsScreen: Loaded auth token from AsyncStorage:', authToken);
-      
       if (userDataString && authToken) {
         const user = JSON.parse(userDataString);
-        console.log('ChatsScreen: Parsed user data:', user);
         setUserId(user.id);
       }
     } catch (error) {
@@ -81,32 +86,27 @@ export default function ChatsScreen({ navigation }) {
     }
   };
   
-  const loadChatsData = async () => {
+  const loadChatsData = async (isManualRefresh = false) => {
     if (!userId) return;
     
     try {
-      setLoading(true);
+      // Only set loading state for manual refreshes
+      if (isManualRefresh) {
+        setLoading(true);
+        setManualRefresh(true);
+      }
+      
       const response = await api.getChats(userId);
       
       if (response.data.success) {
         // Transform chats to match the expected format
         const formattedChats = (response.data.data || []).map(chat => {
-          // Translate message types
-          let displayMessage = chat.last_message || '';
-          if (displayMessage === 'Image') {
-            displayMessage = t('image');
-          } else if (displayMessage === 'Video') {
-            displayMessage = t('video');
-          } else if (displayMessage === 'Voice Message') {
-            displayMessage = t('voiceMessage');
-          }
-          
           return {
             id: chat.id,
             name: chat.chat_type === 'private' && chat.other_participant_name 
               ? chat.other_participant_name 
-              : chat.chat_name || 'Unknown',
-            message: displayMessage,
+              : chat.chat_name,
+            message: chat.last_message || '',
             time: chat.last_message_time ? 
               new Date(chat.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
               '',
@@ -125,7 +125,11 @@ export default function ChatsScreen({ navigation }) {
       console.error('Error loading chats:', error);
       setChats([]);
     } finally {
-      setLoading(false);
+      // Only unset loading state for manual refreshes
+      if (isManualRefresh) {
+        setLoading(false);
+        setManualRefresh(false);
+      }
     }
   };
   
@@ -268,8 +272,8 @@ export default function ChatsScreen({ navigation }) {
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderChatItem}
         contentContainerStyle={styles.chatList}
-        onRefresh={loadChatsData}
-        refreshing={loading}
+        onRefresh={() => loadChatsData(true)} // Pass true to indicate manual refresh
+        refreshing={manualRefresh} // Use manualRefresh instead of loading
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>

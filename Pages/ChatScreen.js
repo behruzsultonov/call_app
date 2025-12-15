@@ -27,14 +27,15 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import Sound from 'react-native-nitro-sound';
 import AudioWaveform from '../components/AudioWaveform';
 
-export default function ChatScreen({ navigation, route }) {
+export default function ChatScreen({ route, navigation }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [manualRefresh, setManualRefresh] = useState(false); // New state to track manual refresh
   const [userId, setUserId] = useState(null);
+  const [input, setInput] = useState('');
   const [otherParticipantName, setOtherParticipantName] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [visibleImageViewer, setVisibleImageViewer] = useState(false);
@@ -54,7 +55,6 @@ export default function ChatScreen({ navigation, route }) {
   const chatName = chat?.name || 'Unknown Contact';
   const isPrivateChat = chat?.isPrivate;
   const otherParticipantId = chat?.otherParticipantId;
-
   useEffect(() => {
     // Load user data and then messages
     loadUserData();
@@ -77,13 +77,13 @@ export default function ChatScreen({ navigation, route }) {
   useEffect(() => {
     const loadChat = () => {
       if (chatId && userId) {
-        loadMessages();
+        loadMessages(false); // Pass false to indicate this is not a manual refresh
       }
     };
 
     const refreshChat = () => {
       if (chatId && userId) {
-        loadMessages();
+        loadMessages(false); // Pass false to indicate this is not a manual refresh
       }
     };
 
@@ -135,11 +135,16 @@ export default function ChatScreen({ navigation, route }) {
     }
   };
   
-  const loadMessages = async () => {
+  const loadMessages = async (isManualRefresh = false) => {
     if (!chatId || !userId) return;
     
     try {
-      setLoading(true);
+      // Only set loading state for manual refreshes
+      if (isManualRefresh) {
+        setLoading(true);
+        setManualRefresh(true);
+      }
+      
       console.log('Loading messages for chat:', chatId, 'user:', userId);
       
       const response = await api.getMessages(chatId, userId);
@@ -188,7 +193,11 @@ export default function ChatScreen({ navigation, route }) {
       console.log('Error loading messages:', error);
       setMessages([]);
     } finally {
-      setLoading(false);
+      // Only unset loading state for manual refreshes
+      if (isManualRefresh) {
+        setLoading(false);
+        setManualRefresh(false);
+      }
     }
   };
 
@@ -1083,8 +1092,8 @@ export default function ChatScreen({ navigation, route }) {
         ListHeaderComponent={
           <Text style={[styles.centerDate, { color: theme.text, marginBottom: 10 }]}>{t('today')}</Text>
         }
-        onRefresh={loadMessages}
-        refreshing={loading}
+        onRefresh={() => loadMessages(true)} // Pass true to indicate manual refresh
+        refreshing={manualRefresh} // Use manualRefresh instead of loading
       />
       
       {/* Image Viewer Modal */}
@@ -1184,10 +1193,6 @@ export default function ChatScreen({ navigation, route }) {
               {
                 text: t('video'),
                 onPress: selectVideo,
-              },
-              {
-                text: t('voiceMessage'),
-                onPress: isRecording ? stopRecording : startRecording,
               },
               {
                 text: t('cancel'),
@@ -1464,6 +1469,8 @@ const styles = StyleSheet.create({
   },
 
 });
+
+
 
 
 
