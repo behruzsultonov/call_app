@@ -156,8 +156,20 @@ function handleGetChats() {
                 $participant = $participantStmt->fetch();
                 
                 if ($participant) {
-                    $chat['other_participant_name'] = $participant['username'];
                     $chat['other_participant_id'] = $participant['id'];
+                    
+                    // Check if there's a contact name for this user
+                    $contactStmt = $pdo->prepare("
+                        SELECT contact_name
+                        FROM contacts
+                        WHERE user_id = ? AND contact_user_id = ?
+                        LIMIT 1
+                    ");
+                    $contactStmt->execute([$userId, $participant['id']]);
+                    $contact = $contactStmt->fetch();
+                    
+                    // Use contact name if available, otherwise use username
+                    $chat['other_participant_name'] = $contact ? $contact['contact_name'] : $participant['username'];
                 }
             }
         }
@@ -333,8 +345,20 @@ function handleCreateChat() {
             $participant = $participantStmt->fetch();
             
             if ($participant) {
-                $chat['other_participant_name'] = $participant['username'];
                 $chat['other_participant_id'] = $participant['id'];
+                
+                // Check if there's a contact name for this user
+                $contactStmt = $pdo->prepare("
+                    SELECT contact_name
+                    FROM contacts
+                    WHERE user_id = ? AND contact_user_id = ?
+                    LIMIT 1
+                ");
+                $contactStmt->execute([$createdBy, $participant['id']]);
+                $contact = $contactStmt->fetch();
+                
+                // Use contact name if available, otherwise use username
+                $chat['other_participant_name'] = $contact ? $contact['contact_name'] : $participant['username'];
             }
         }
         
@@ -482,4 +506,5 @@ function handleDeleteChat() {
         sendResponse(false, "Error deleting chat: " . $e->getMessage());
     }
 }
+
 ?>

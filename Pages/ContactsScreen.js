@@ -14,8 +14,10 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import api from '../services/Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
-export default function ContactsScreen({ navigation }) {
+export default function ContactsScreen({ navigation, route }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   
@@ -32,6 +34,22 @@ export default function ContactsScreen({ navigation }) {
       loadContacts();
     }
   }, [userId]);
+  
+  // Refresh contacts when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) {
+        loadContacts();
+      }
+      
+      // Check if we need to refresh from route params
+      if (route?.params?.refresh) {
+        loadContacts();
+        // Reset the param so we don't keep refreshing
+        navigation.setParams({ refresh: false });
+      }
+    }, [userId, route?.params?.refresh])
+  );
   
   const loadUserData = async () => {
     try {

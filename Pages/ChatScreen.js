@@ -9,7 +9,8 @@ import {
   Alert,
   Image,
   TouchableWithoutFeedback,
-  Modal
+  Modal,
+  AppState
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
@@ -25,6 +26,7 @@ import RNFS from 'react-native-fs';
 import { PermissionsAndroid, Platform } from 'react-native';
 import Sound from 'react-native-nitro-sound';
 import AudioWaveform from '../components/AudioWaveform';
+
 export default function ChatScreen({ navigation, route }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -43,7 +45,9 @@ export default function ChatScreen({ navigation, route }) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [playingAudioId, setPlayingAudioId] = useState(null); // Track currently playing audio message
-    const [audioProgress, setAudioProgress] = useState({}); // Track progress of audio messages
+  const [audioProgress, setAudioProgress] = useState({}); // Track progress of audio messages
+  const appState = useRef(AppState.currentState);
+  
   // Get chat data from navigation params
   const { chat } = route.params || {};
   const chatId = chat?.id;
@@ -68,6 +72,40 @@ export default function ChatScreen({ navigation, route }) {
       loadMessages();
     }
   }, [chatId, userId]); // Add userId to dependency array to ensure reload when it changes
+
+  // Simplified polling implementation for real-time updates
+  useEffect(() => {
+    const loadChat = () => {
+      if (chatId && userId) {
+        loadMessages();
+      }
+    };
+
+    const refreshChat = () => {
+      if (chatId && userId) {
+        loadMessages();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        loadChat();
+      }
+      appState.current = nextAppState;
+    });
+
+    const intervalId = setInterval(() => {
+      refreshChat();
+    }, 3000);
+
+    return () => {
+      subscription.remove();
+      clearInterval(intervalId);
+    };
+  }, [chatId, userId]);
 
   // Add useEffect to clean up audio when component unmounts
   useEffect(() => {
@@ -1426,6 +1464,14 @@ const styles = StyleSheet.create({
   },
 
 });
+
+
+
+
+
+
+
+
 
 
 

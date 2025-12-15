@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  AppState
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
@@ -22,15 +23,44 @@ export default function ChatsScreen({ navigation }) {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState(null);
+  const appState = useRef(AppState.currentState);
   
   useEffect(() => {
     loadUserData();
   }, []);
   
+  // Simplified polling implementation for real-time updates
   useEffect(() => {
-    if (userId) {
-      loadChats();
-    }
+    const loadChats = () => {
+      if (userId) {
+        loadChatsData();
+      }
+    };
+
+    const refreshChats = () => {
+      if (userId) {
+        loadChatsData();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        loadChats();
+      }
+      appState.current = nextAppState;
+    });
+
+    const intervalId = setInterval(() => {
+      refreshChats();
+    }, 5000);
+
+    return () => {
+      subscription.remove();
+      clearInterval(intervalId);
+    };
   }, [userId]);
   
   const loadUserData = async () => {
@@ -51,20 +81,12 @@ export default function ChatsScreen({ navigation }) {
     }
   };
   
-  const loadChats = async () => {
-    if (!userId) {
-      console.log('ChatsScreen: No user ID, skipping loadChats');
-      return;
-    }
+  const loadChatsData = async () => {
+    if (!userId) return;
     
-    console.log('Loading chats for user ID:', userId);
     try {
       setLoading(true);
-      console.log('ChatsScreen: Making API call to get chats for user ID:', userId);
-      
       const response = await api.getChats(userId);
-      
-      console.log('ChatsScreen: Received response from getChats:', response);
       
       if (response.data.success) {
         // Transform chats to match the expected format
@@ -101,15 +123,6 @@ export default function ChatsScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading chats:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        response: error.response?.data,
-        status: error.response?.status,
-        headers: error.response?.headers,
-        config: error.config,
-        request: error.request
-      });
       setChats([]);
     } finally {
       setLoading(false);
@@ -131,7 +144,7 @@ export default function ChatsScreen({ navigation }) {
       
       if (response.data.success) {
         // Reload chats after creating a new one
-        loadChats();
+        loadChatsData();
         
         // Navigate to the new chat
         const createdChat = response.data.data;
@@ -255,7 +268,7 @@ export default function ChatsScreen({ navigation }) {
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderChatItem}
         contentContainerStyle={styles.chatList}
-        onRefresh={loadChats}
+        onRefresh={loadChatsData}
         refreshing={loading}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
