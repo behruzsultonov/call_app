@@ -195,7 +195,7 @@ const CallScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error toggling recording:', error);
-      Alert.alert(t('error'), t('failedToToggleRecording'));
+      Alert.alert(t('error'), t('failedToToggleRecording') + ': ' + error.message);
     }
   };
 

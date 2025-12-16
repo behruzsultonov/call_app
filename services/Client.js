@@ -37,30 +37,23 @@ console.log('API client initialized:', apiClient);
 // Add request interceptor to include auth token
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('Interceptor called with config:', config);
     const currentToken = getAuthToken();
-    console.log('Current auth token from getAuthToken():', currentToken);
-    console.log('Request config before processing:', config);
-    
+
     // Add token to query parameters if available
     if (currentToken) {
       if (!config.params) {
         config.params = {};
       }
       config.params.token = currentToken;
-      console.log('Adding auth token to request:', currentToken);
     } else {
       console.log('No auth token available for request');
     }
-    console.log('→', config.method?.toUpperCase(), config.url, JSON.stringify(config.params || config.data, null, 2));
     // Construct full URL for debugging
-        const fullUrl = config.baseURL + config.url;
-        const queryString = config.params ? Object.keys(config.params).map(key => 
-          `${encodeURIComponent(key)}=${encodeURIComponent(config.params[key])}`).join('&') : '';
-        const finalUrl = queryString ? `${fullUrl}?${queryString}` : fullUrl;
-        console.log('Full request URL:', finalUrl);
-        
-        console.log('Final request config:', config);
+    const fullUrl = config.baseURL + config.url;
+    const queryString = config.params ? Object.keys(config.params).map(key =>
+      `${encodeURIComponent(key)}=${encodeURIComponent(config.params[key])}`).join('&') : '';
+    const finalUrl = queryString ? `${fullUrl}?${queryString}` : fullUrl;
+
     return config;
   },
   (error) => {
@@ -71,14 +64,12 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('←', response.status, response.data);
-    
     // Check if response status indicates an error
     if (response.status >= 400) {
       console.log('HTTP Error Status:', response.status);
       return Promise.reject(new Error(`HTTP ${response.status}: ${response.data?.message || 'Unknown error'}`));
     }
-    
+
     return response;
   },
   (error) => {
@@ -101,7 +92,7 @@ apiClient.interceptors.response.use(
         responseURL: error.request.responseURL
       } : null
     });
-    
+
     // If it's a network error, try to provide more details
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
       console.log('Network Error detected - checking connectivity...');
@@ -112,7 +103,7 @@ apiClient.interceptors.response.use(
         timeout: error.config?.timeout
       });
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -125,7 +116,6 @@ const setAuthToken = (token) => {
 };
 
 const getAuthToken = () => {
-  console.log('Getting auth token. Current value:', authToken);
   return authToken;
 };
 
@@ -135,7 +125,7 @@ const api = {};
 api.testConnectivity = async () => {
   try {
     console.log('Testing basic connectivity to:', CHAT_API_URL);
-    
+
     // Test 1: Simple GET request
     console.log('Test 1: Simple GET request...');
     const response1 = await fetch(`${CHAT_API_URL}index.php?action=test`, {
@@ -145,17 +135,17 @@ api.testConnectivity = async () => {
       },
       timeout: 10000
     });
-    
+
     console.log('Test 1 response status:', response1.status);
     console.log('Test 1 response ok:', response1.ok);
-    
+
     if (!response1.ok) {
       throw new Error(`Server returned ${response1.status}`);
     }
-    
+
     const data = await response1.json();
     console.log('Connectivity test response:', data);
-    
+
     // Test 2: Request with token
     console.log('Test 2: Request with auth token...');
     const token = getAuthToken();
@@ -165,11 +155,11 @@ api.testConnectivity = async () => {
         'Content-Type': 'application/json',
       }
     });
-    
+
     console.log('Test 2 response status:', response2.status);
     const data2 = await response2.json();
     console.log('Test 2 response:', data2);
-    
+
     return { success: true, data, data2 };
   } catch (error) {
     console.error('Connectivity test error:', error);
@@ -185,16 +175,14 @@ api.testConnectivity = async () => {
 // ------------------ CHATS ------------------
 api.getChats = async (userId) => {
   try {
-    console.log('api.getChats: Starting request for userId:', userId);
     const response = await apiClient.get('index.php', {
       params: { action: 'chats', user_id: Number(userId) },
     });
-    console.log('api.getChats: Successful response:', response);
     return response;
   } catch (error) {
     console.log('API Error in getChats with HTTPS:', error.message);
     console.log('Error code:', error.code);
-    
+
     // If it's a network error and we're using HTTPS, try HTTP fallback
     if ((error.code === 'ERR_NETWORK' || error.message === 'Network Error') && CHAT_API_URL === CHAT_API_URL_HTTPS) {
       console.log('Network error detected, trying HTTP fallback...');
@@ -212,14 +200,14 @@ api.getChats = async (userId) => {
         throw error;
       }
     }
-    
+
     // Try fetch as fallback
     try {
       console.log('Trying fetch fallback for getChats...');
       const token = getAuthToken();
       const fetchUrl = `${CHAT_API_URL}index.php?action=chats&user_id=${Number(userId)}&token=${encodeURIComponent(token)}`;
       console.log('Fetch URL:', fetchUrl);
-      
+
       const response = await fetch(fetchUrl, {
         method: 'GET',
         headers: {
@@ -227,13 +215,13 @@ api.getChats = async (userId) => {
           Accept: 'application/json',
         }
       });
-      
+
       console.log('Fetch response status:', response.status);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       console.log('Fetch fallback successful:', data);
       return { data, status: response.status };
@@ -248,8 +236,8 @@ api.checkPrivateChat = async (userId, otherUserId) => {
   try {
     console.log('api.checkPrivateChat: Checking for existing chat between', userId, 'and', otherUserId);
     const response = await apiClient.get('index.php', {
-      params: { 
-        action: 'chats', 
+      params: {
+        action: 'chats',
         subaction: 'check_private',
         other_user_id: Number(otherUserId),
         user_id: Number(userId)  // This will be used for authentication
@@ -406,7 +394,7 @@ api.uploadAvatar = (userId, imageUri) => {
   });
 
   return apiClient.post('index.php?action=avatar', formData, {
-    headers: { 
+    headers: {
       'Content-Type': 'multipart/form-data',
     },
   });
@@ -442,7 +430,7 @@ api.getCurrentBaseURL = () => {
 api.resetConnections = () => {
   try {
     console.log('Resetting all HTTP/HTTPS connections...');
-    
+
     // Create new axios instance to clear any cached connections
     const newApiClient = axios.create({
       baseURL: CHAT_API_URL,
@@ -461,11 +449,11 @@ api.resetConnections = () => {
         keepAlive: false,
       }
     });
-    
+
     // Copy all interceptors to new client
     newApiClient.interceptors.request.use(...apiClient.interceptors.request.handlers);
     newApiClient.interceptors.response.use(...apiClient.interceptors.response.handlers);
-    
+
     console.log('Connection reset complete');
     return true;
   } catch (error) {
@@ -478,7 +466,7 @@ api.resetConnections = () => {
 api.checkCertificate = async () => {
   try {
     console.log('Checking HTTPS certificate for:', CHAT_API_URL_HTTPS);
-    
+
     // Try HTTPS request
     const response = await fetch(CHAT_API_URL_HTTPS + 'index.php?action=test', {
       method: 'GET',
@@ -486,7 +474,7 @@ api.checkCertificate = async () => {
         'Content-Type': 'application/json',
       }
     });
-    
+
     console.log('Certificate check - HTTPS response:', {
       status: response.status,
       ok: response.ok,
@@ -495,7 +483,7 @@ api.checkCertificate = async () => {
         'date': response.headers.get('date'),
       }
     });
-    
+
     return {
       https: response.ok,
       status: response.status,

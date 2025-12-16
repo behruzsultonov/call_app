@@ -158,6 +158,13 @@ export default function ProfileScreen({ navigation }) {
        <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
         <MenuItem icon="sim-card" color={theme.primary} label={t('tariffPlans')} theme={theme} />
         <MenuItem icon="bookmark-border" color={theme.primary} label={t('savedMessages')} theme={theme} />
+        <MenuItem 
+          icon="audiotrack" 
+          color={theme.primary} 
+          label={t('recordedCalls')} 
+          theme={theme} 
+          onPress={() => navigation.navigate('RecordedCalls')} 
+        />
       </View>
 
       <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>

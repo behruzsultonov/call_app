@@ -10,8 +10,9 @@ import {
 import io from 'socket.io-client';
 import InCallManager from 'react-native-incall-manager';
 import RNFS from 'react-native-fs';
-import { Platform } from 'react-native';
+import { Platform, PermissionsAndroid } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Sound from 'react-native-nitro-sound';
 
 // Register WebRTC globals for better compatibility
 registerGlobals();
@@ -627,6 +628,31 @@ class WebRTCService {
     return false;
   }
 
+  // Request audio recording permission
+  async requestAudioPermission() {
+    if (Platform.OS === 'android') {
+      try {
+        // For Android, we primarily need RECORD_AUDIO permission
+        // WRITE_EXTERNAL_STORAGE is not needed when saving to app's private directory
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: 'Audio Recording Permission',
+            message: 'This app needs permission to record audio for call recording',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true; // iOS permissions are handled differently
+  }
+
   // Start recording the call (real audio recording from microphone)
   async startRecording() {
     try {
@@ -639,38 +665,61 @@ class WebRTCService {
         return;
       }
 
+      // Request audio permission
+      const hasPermission = await this.requestAudioPermission();
+      if (!hasPermission) {
+        throw new Error('Audio recording permission denied');
+      }
+
       // Create filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const fileName = `call_recording_${timestamp}.wav`;
+      const fileName = `call_recording_${timestamp}.aac`;
       
-      // Save to public directory for both platforms
-      let recordingDir;
+      // Save to a more accessible directory for both platforms
+      let recordingPath;
       if (Platform.OS === 'android') {
-        // For Android, save to Downloads/CallApp directory
-        recordingDir = `${RNFS.DownloadDirectoryPath}/CallApp`;
+        // For Android, save to Downloads directory for better accessibility
+        const downloadsDir = RNFS.DownloadDirectoryPath;
+        recordingPath = `${downloadsDir}/${fileName}`;
+        
+        // Request storage permission for Android
+        if (Platform.Version >= 23) {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+            {
+              title: 'Storage Permission',
+              message: 'App needs access to storage to save recordings',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            },
+          );
+          
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            // Fallback to Documents directory if permission denied
+            recordingPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+          }
+        }
       } else {
-        // For iOS, save to Documents directory (Documents is accessible)
-        recordingDir = `${RNFS.DocumentDirectoryPath}`;
+        // For iOS, save to Documents directory
+        recordingPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
       }
       
-      // Create directory if it doesn't exist
-      const dirExists = await RNFS.exists(recordingDir);
-      if (!dirExists) {
-        await RNFS.mkdir(recordingDir);
-      }
-      
-      this.recordingFilePath = `${recordingDir}/${fileName}`;
+      this.recordingFilePath = recordingPath;
       console.log('Recording file path:', this.recordingFilePath);
 
-      // Start recording by capturing audio data from the local stream
+      // Start recording with react-native-nitro-sound
       this.isRecording = true;
       this.recordingStartTime = Date.now();
       
-      // Create a simple WAV file header
-      const wavHeader = this.createWavHeader(1, 44100, 16);
-      
-      // Write header to file
-      await RNFS.writeFile(this.recordingFilePath, wavHeader, 'base64');
+      // Set up recording progress listener
+      Sound.addRecordBackListener((e) => {
+        console.log('Recording progress:', e.currentPosition);
+      });
+
+      // Start recording with the specified path
+      const result = await Sound.startRecorder(recordingPath);
+      console.log('Recording started:', result);
       
       console.log('Started recording call to:', this.recordingFilePath);
       
@@ -697,12 +746,17 @@ class WebRTCService {
       const recordingEndTime = Date.now();
       const recordingDuration = recordingEndTime - this.recordingStartTime;
       
+      console.log('Stopping recording...');
+      
+      // Stop recording with react-native-nitro-sound
+      const result = await Sound.stopRecorder();
+      console.log('Recording stopped:', result);
+      
+      // Remove recording listener
+      Sound.removeRecordBackListener();
+      
       console.log('Stopped recording. Duration:', recordingDuration, 'ms');
       console.log('Recording saved to:', this.recordingFilePath);
-      
-      // Append some dummy audio data to make it a valid WAV file
-      const dummyAudioData = 'UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAA';
-      await RNFS.appendFile(this.recordingFilePath, dummyAudioData, 'base64');
       
       if (this.onRecordingStopped) {
         this.onRecordingStopped(this.recordingFilePath, recordingDuration);
@@ -710,8 +764,15 @@ class WebRTCService {
       
       // Reset recording state
       this.recordingStartTime = null;
+      this.recordingFilePath = null;
     } catch (error) {
       console.error('Error stopping recording:', error);
+      // Clean up listeners even if there's an error
+      try {
+        Sound.removeRecordBackListener();
+      } catch (e) {
+        console.log('Error cleaning up recording listeners:', e);
+      }
       throw error;
     }
   }
