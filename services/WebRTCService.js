@@ -11,17 +11,18 @@ import io from 'socket.io-client';
 import InCallManager from 'react-native-incall-manager';
 import RNFS from 'react-native-fs';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Register WebRTC globals for better compatibility
 registerGlobals();
 
 class WebRTCService {
-  constructor() {
+  constructor(userId = null) {
     this.socket = null;
     this.peerConnection = null;
     this.localStream = null;
     this.remoteStream = null;
-    this.userId = this.generateUserId();
+    this.userId = userId ? userId.toString() : this.generateUserId(); // Ensure it's a string
     this.isInCall = false;
     this.isCaller = false;
     this.currentCallTarget = null;
@@ -43,7 +44,7 @@ class WebRTCService {
     this.onRecordingStopped = null;
   }
 
-  // Generate a 4-digit user ID
+  // Generate a 4-digit user ID (fallback)
   generateUserId() {
     return Math.floor(1000 + Math.random() * 9000).toString();
   }
@@ -60,7 +61,7 @@ class WebRTCService {
       this.socket = io('https://webrtc-server-n44t.onrender.com', {
         transports: ['websocket'],
         query: {
-          callerId: this.userId,
+          callerId: this.userId.toString(), // Ensure it's a string
         },
       });
 
@@ -84,6 +85,22 @@ class WebRTCService {
     }
   }
 
+  // Update the user ID if we get the actual one later
+  updateUserId(newUserId) {
+    if (newUserId && newUserId !== this.userId) {
+      console.log('Updating WebRTC user ID from', this.userId, 'to', newUserId);
+      this.userId = newUserId.toString(); // Ensure it's a string
+      
+      // If we're already connected, we might need to reconnect with the new ID
+      if (this.socket && this.socket.connected) {
+        console.log('Reconnecting with new user ID');
+        this.socket.disconnect();
+        this.socket.io.opts.query.callerId = this.userId;
+        this.socket.connect();
+      }
+    }
+  }
+
   // Set up socket event listeners
   setupSocketListeners() {
     this.socket.on('connect', () => {
@@ -93,6 +110,8 @@ class WebRTCService {
     this.socket.on('newCall', (data) => {
       console.log('Incoming call from:', data.callerId);
       console.log('Offer data:', data.rtcMessage);
+      // Set the caller as the current call target
+      this.currentCallTarget = data.callerId;
       if (this.onIncomingCall) {
         this.onIncomingCall(data.callerId, data.rtcMessage);
       }
@@ -153,6 +172,12 @@ class WebRTCService {
       console.log('User left call:', data.userId);
       this.endCall();
     });
+    
+    this.socket.on('callRejected', (data) => {
+      console.log('Call rejected by user:', data.userId);
+      this.endCall();
+    });
+
   }
 
   // Process pending ICE candidates
@@ -346,7 +371,7 @@ class WebRTCService {
   async makeCall(targetUserId) {
     try {
       this.isCaller = true;
-      this.currentCallTarget = targetUserId;
+      this.currentCallTarget = targetUserId.toString(); // Ensure it's a string
       
       // Ensure we have a peer connection
       if (!this.peerConnection) {
@@ -370,7 +395,7 @@ class WebRTCService {
         }
       }
 
-      console.log('Creating offer to:', targetUserId);
+      console.log('Creating offer to:', this.currentCallTarget);
       const sessionDescription = await this.peerConnection.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: true,
@@ -378,9 +403,9 @@ class WebRTCService {
       console.log('Offer created:', sessionDescription);
       await this.peerConnection.setLocalDescription(sessionDescription);
       
-      console.log('Sending call to:', targetUserId);
+      console.log('Sending call to:', this.currentCallTarget);
       this.socket.emit('call', {
-        calleeId: targetUserId,
+        calleeId: this.currentCallTarget,
         rtcMessage: sessionDescription,
       });
 
@@ -410,7 +435,7 @@ class WebRTCService {
     try {
       this.isAnsweringCall = true;
       this.isCaller = false;
-      this.currentCallTarget = callerId;
+      this.currentCallTarget = callerId.toString(); // Ensure it's a string
       
       // Stop ringing when answering the call
       InCallManager.stopRingtone();
@@ -437,7 +462,7 @@ class WebRTCService {
         }
       }
 
-      console.log('Setting remote description for caller:', callerId);
+      console.log('Setting remote description for caller:', this.currentCallTarget);
       console.log('Offer:', offer);
       await this.peerConnection.setRemoteDescription(
         new RTCSessionDescription(offer),
@@ -454,9 +479,9 @@ class WebRTCService {
       console.log('Answer created:', sessionDescription);
       await this.peerConnection.setLocalDescription(sessionDescription);
 
-      console.log('Sending answer to:', callerId);
+      console.log('Sending answer to:', this.currentCallTarget);
       this.socket.emit('answerCall', {
-        callerId: callerId,
+        callerId: this.currentCallTarget,
         rtcMessage: sessionDescription,
       });
 
@@ -515,6 +540,45 @@ class WebRTCService {
     // Stop all InCallManager sounds
     InCallManager.stop();
 
+    if (this.onCallEnded) {
+      this.onCallEnded();
+    }
+  }
+
+  // Reject an incoming call
+  rejectCall() {
+    console.log('Rejecting call from:', this.currentCallTarget);
+    
+    // Notify the caller that the call was rejected
+    if (this.currentCallTarget && this.socket) {
+      this.socket.emit('rejectCall', {
+        userId: this.currentCallTarget,
+      });
+    }
+    
+    // Clean up local resources
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream = null;
+    }
+    
+    // Check if peerConnection is still valid before closing
+    if (this.peerConnection) {
+      this.peerConnection.close();
+      this.peerConnection = null;
+    }
+    
+    this.isInCall = false;
+    this.isCaller = false;
+    this.currentCallTarget = null;
+    this.isAnsweringCall = false; // Reset answer flag
+    this.remoteStream = null; // Clear remote stream
+    this.pendingICECandidates = []; // Clear pending ICE candidates
+    
+    // Stop all InCallManager sounds
+    InCallManager.stop();
+    InCallManager.stopRingtone();
+    
     if (this.onCallEnded) {
       this.onCallEnded();
     }

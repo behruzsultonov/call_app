@@ -5,6 +5,8 @@ import Header from '../components/Header';
 import { useWebRTC } from '../contexts/WebRTCContext';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
+import api from '../services/Client'; // Import the API client
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // DialPad Component
 const DialPad = ({ onPressDigit, onClose, onCall, onDelete, t, theme }) => {
@@ -60,9 +62,27 @@ const CallsScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const [showDialer, setShowDialer] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [actualUserId, setActualUserId] = useState(null);
   
   const { userId, makeCall, callStatus } = useWebRTC();
   
+  // Load actual user ID from AsyncStorage
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const userDataString = await AsyncStorage.getItem('userData');
+        if (userDataString) {
+          const userData = JSON.parse(userDataString);
+          setActualUserId(userData.id ? userData.id.toString() : null);
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+
+    loadUserData();
+  }, []);
+
   // Call data
   const calls = [
     {
@@ -168,8 +188,8 @@ const CallsScreen = ({ navigation }) => {
   };
 
   const handleNumberPress = (number) => {
-    // Only allow 4 digits for user ID
-    if (phoneNumber.length < 4 || number === '*' || number === '#') {
+    // Allow entering phone numbers of reasonable length
+    if (phoneNumber.length < 20) {
       setPhoneNumber(phoneNumber + number);
     }
   };
@@ -179,17 +199,41 @@ const CallsScreen = ({ navigation }) => {
   };
 
   const handleCall = async () => {
-    // Validate that we have a 4-digit number
-    if (phoneNumber.length !== 4 || !/^\d{4}$/.test(phoneNumber)) {
-      Alert.alert(t('invalidNumber'), t('enterValid4DigitId'));
+    // Validate that we have a phone number entered
+    if (!phoneNumber || phoneNumber.length < 3) {
+      Alert.alert(t('invalidNumber'), t('pleaseEnterPhoneNumber'));
+      return;
+    }
+
+    // Additional validation for phone number format (basic check)
+    // Allow phone numbers with or without country codes
+    const phoneRegex = /^[0-9+\-\s\(\)]+$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      Alert.alert(t('invalidNumber'), t('invalidPhoneNumber'));
       return;
     }
 
     try {
-      // Make the call using WebRTC context
-      await makeCall(phoneNumber);
+      // First, check if the user exists in the database by phone number
+      const response = await api.getUserByPhoneNumber(phoneNumber);
+      
+      if (response.data.success && response.data.data) {
+        // Get the user object
+        const user = response.data.data;
+        
+        if (user && user.id) {
+          // User exists, proceed with the call using their actual user ID
+          await makeCall(user.id.toString(), phoneNumber); // Pass the phone number as well
+        } else {
+          // User doesn't exist, show error message
+          Alert.alert(t('userNotFound'), t('userDoesNotExist'));
+        }
+      } else {
+        // User doesn't exist, show error message
+        Alert.alert(t('userNotFound'), t('userDoesNotExist'));
+      }
     } catch (error) {
-      console.error('Error making call:', error);
+      console.error('Error checking user or making call:', error);
       Alert.alert(t('callFailed'), t('failedToInitiateCall'));
     }
   };
@@ -204,7 +248,7 @@ const CallsScreen = ({ navigation }) => {
           <View style={[styles.idContainer, { backgroundColor: theme.cardBackground }]}>
             <Text style={[styles.idLabel, { color: theme.textSecondary }]}>{t('yourId')}:</Text>
             <Text style={[styles.idValue, { color: theme.primary }]}>
-              {userId ? String(userId).padStart(4, '0') : t('loading')}
+              {actualUserId || (userId ? String(userId).padStart(4, '0') : t('loading'))}
             </Text>
           </View>
 

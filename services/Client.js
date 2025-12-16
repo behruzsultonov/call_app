@@ -338,6 +338,11 @@ api.getUsers = (search = null) =>
       : { action: 'users' },
   });
 
+api.getUserByPhoneNumber = (phoneNumber) =>
+  apiClient.get('index.php', {
+    params: { action: 'users', subaction: 'find_by_phone', search: phoneNumber },
+  });
+
 api.getUser = (userId) =>
   apiClient.get('index.php', {
     params: { action: 'users', user_id: Number(userId) },

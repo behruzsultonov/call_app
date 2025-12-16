@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import WebRTCService from '../services/WebRTCService';
 import InCallManager from 'react-native-incall-manager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/Client'; // Import the API client
 
 // Create the context
 const WebRTCContext = createContext();
@@ -12,6 +14,8 @@ export const WebRTCProvider = ({ children }) => {
   const [isInCall, setIsInCall] = useState(false);
   const [callStatus, setCallStatus] = useState('idle'); // idle, calling, incoming, connected, ended
   const [remoteUserId, setRemoteUserId] = useState('');
+  const [remoteUserPhoneNumber, setRemoteUserPhoneNumber] = useState(''); // Add state for remote user phone number
+  const [dialedPhoneNumber, setDialedPhoneNumber] = useState(''); // Add state for dialed phone number
   const [remoteStream, setRemoteStream] = useState(null); // Add state for remote stream
   const [localStream, setLocalStream] = useState(null); // Add state for local stream
   const [isRecording, setIsRecording] = useState(false); // Add state for recording
@@ -23,9 +27,21 @@ export const WebRTCProvider = ({ children }) => {
     // Initialize WebRTC service
     const initializeWebRTC = async () => {
       try {
-        webRTCServiceRef.current = new WebRTCService();
+        // Get the actual user ID from AsyncStorage
+        let actualUserId = null;
+        try {
+          const userDataString = await AsyncStorage.getItem('userData');
+          if (userDataString) {
+            const userData = JSON.parse(userDataString);
+            actualUserId = userData.id ? userData.id.toString() : null;
+          }
+        } catch (error) {
+          console.error('Error getting user ID from AsyncStorage:', error);
+        }
+
+        webRTCServiceRef.current = new WebRTCService(actualUserId);
         
-        // Get the user ID immediately (it's generated in the constructor)
+        // Get the user ID (either actual or generated)
         const id = webRTCServiceRef.current.getUserId();
         setUserId(id);
         
@@ -60,12 +76,57 @@ export const WebRTCProvider = ({ children }) => {
     };
   }, []);
 
+  // Listen for user data changes
+  useEffect(() => {
+    const handleUserDataChange = async () => {
+      try {
+        const userDataString = await AsyncStorage.getItem('userData');
+        if (userDataString) {
+          const userData = JSON.parse(userDataString);
+          const newUserId = userData.id ? userData.id.toString() : null;
+          if (newUserId && newUserId !== userId) {
+            setUserId(newUserId);
+            // Update the WebRTC service with the actual user ID
+            if (webRTCServiceRef.current) {
+              webRTCServiceRef.current.updateUserId(newUserId);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error handling user data change:', error);
+      }
+    };
+
+    // Set up a listener for changes to userData in AsyncStorage
+    const interval = setInterval(handleUserDataChange, 5000); // Check every 5 seconds
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [userId]);
+
   // Handle incoming call
-  const handleIncomingCall = (callerId, offer) => {
+  const handleIncomingCall = async (callerId, offer) => {
     console.log('Handling incoming call from:', callerId);
     setCallStatus('incoming');
     setRemoteUserId(callerId);
     webRTCServiceRef.current.currentOffer = offer;
+    
+    // Fetch caller's phone number for display
+    try {
+      const response = await api.getUser(callerId);
+      if (response.data.success && response.data.data) {
+        const callerData = response.data.data;
+        setRemoteUserPhoneNumber(callerData.phone_number || callerId);
+      } else {
+        // Fallback to callerId if we can't get phone number
+        setRemoteUserPhoneNumber(callerId);
+      }
+    } catch (error) {
+      console.error('Error fetching caller phone number:', error);
+      // Fallback to callerId if we can't get phone number
+      setRemoteUserPhoneNumber(callerId);
+    }
     
     // Start ringing for incoming call
     InCallManager.startRingtone('_DEFAULT_', 'default');
@@ -98,6 +159,8 @@ export const WebRTCProvider = ({ children }) => {
     setCallStatus('ended');
     setIsInCall(false);
     setRemoteUserId('');
+    setRemoteUserPhoneNumber(''); // Clear remote user phone number
+    setDialedPhoneNumber(''); // Clear dialed phone number
     setRemoteStream(null); // Clear remote stream
     setLocalStream(null); // Clear local stream
     setIsRecording(false); // Stop recording when call ends
@@ -142,16 +205,23 @@ export const WebRTCProvider = ({ children }) => {
   };
 
   // Make a call
-  const makeCall = async (targetUserId) => {
-    if (!targetUserId || targetUserId.length !== 4) {
-      throw new Error('Invalid target user ID. Must be 4 digits.');
+  const makeCall = async (targetUserId, phoneNumber = null) => {
+    // Validate that we have a target user ID
+    if (!targetUserId) {
+      throw new Error('Target user ID is required.');
+    }
+    
+    // Validate that the target user ID is a valid string representation of a number
+    if (isNaN(targetUserId)) {
+      throw new Error('Invalid target user ID format.');
     }
     
     try {
-      console.log('Making call to:', targetUserId);
+      console.log('Making call to user ID:', targetUserId);
       setCallStatus('calling');
-      setRemoteUserId(targetUserId);
-      await webRTCServiceRef.current.makeCall(targetUserId);
+      setRemoteUserId(targetUserId.toString()); // Ensure it's a string
+      setDialedPhoneNumber(phoneNumber || targetUserId.toString()); // Store the dialed phone number or fallback to user ID
+      await webRTCServiceRef.current.makeCall(targetUserId.toString()); // Ensure it's a string
       // Update local stream after making call
       const stream = webRTCServiceRef.current.getLocalStream();
       console.log('Local stream after making call:', stream);
@@ -191,12 +261,8 @@ export const WebRTCProvider = ({ children }) => {
   // Reject incoming call
   const rejectCall = () => {
     console.log('Rejecting call from:', remoteUserId);
-    // In a real implementation, you would send a reject signal
-    webRTCServiceRef.current.endCall();
+    webRTCServiceRef.current.rejectCall();
     handleCallEnded();
-    
-    // Stop ringing when call is rejected
-    InCallManager.stopRingtone();
   };
 
   // End current call
@@ -275,6 +341,8 @@ export const WebRTCProvider = ({ children }) => {
     isInCall,
     callStatus,
     remoteUserId,
+    remoteUserPhoneNumber,
+    dialedPhoneNumber,
     isRecording,
     recordingFilePath,
     makeCall,

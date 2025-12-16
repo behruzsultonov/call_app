@@ -23,6 +23,8 @@ const CallScreen = ({ navigation }) => {
   const {
     callStatus,
     remoteUserId,
+    remoteUserPhoneNumber, // Add remote user phone number
+    dialedPhoneNumber, // Add dialed phone number
     endCall,
     acceptCall,
     rejectCall,
@@ -109,6 +111,18 @@ const CallScreen = ({ navigation }) => {
     };
   }, [isInCall, endCall]);
 
+  // Auto-navigate back to Calls screen when call ends
+  useEffect(() => {
+    if (callStatus === 'ended') {
+      // Navigate back to calls screen after a short delay
+      const timer = setTimeout(() => {
+        navigation.navigate('MainTabs', { screen: 'Calls' });
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [callStatus, navigation]);
+
   // Format call duration
   const formatCallDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -194,7 +208,7 @@ const CallScreen = ({ navigation }) => {
         
         <View style={styles.content}>
           <Text style={[styles.incomingCallText, { color: theme.text }]}>{t('incomingCall')}</Text>
-          <Text style={[styles.userIdText, { color: theme.text }]}>{t('from')}: {remoteUserId}</Text>
+          <Text style={[styles.userIdText, { color: theme.text }]}>{t('from')}: {remoteUserPhoneNumber || remoteUserId}</Text>
           
           <View style={styles.actionButtons}>
             <TouchableOpacity
@@ -224,7 +238,7 @@ const CallScreen = ({ navigation }) => {
       <View style={styles.container}>
         {/* Top panel - absolute top full width orange block */}
         <View style={styles.topPanelFull}>
-          <Text style={styles.number}>{remoteUserId}</Text>
+          <Text style={styles.number}>{dialedPhoneNumber || remoteUserId}</Text>
           <View style={styles.line} />
           <Text style={styles.subText}>{t('calling')}...</Text>
         </View>
@@ -313,7 +327,7 @@ const CallScreen = ({ navigation }) => {
           />
         ) : (
           <View style={[styles.remoteVideoPlaceholder, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.remoteVideoText, { color: theme.text }]}>{t('noVideoFrom')} {remoteUserId}</Text>
+            <Text style={[styles.remoteVideoText, { color: theme.text }]}>{t('noVideoFrom')} {dialedPhoneNumber || remoteUserId}</Text>
             <Text style={[styles.remoteVideoSubtext, { color: theme.textSecondary }]}>{t('checkConnection')}</Text>
           </View>
         )}
@@ -334,7 +348,7 @@ const CallScreen = ({ navigation }) => {
         
         {/* Call info */}
         <View style={styles.callInfo}>
-          <Text style={[styles.callInfoText, { color: theme.text }]}>{remoteUserId}</Text>
+          <Text style={[styles.callInfoText, { color: theme.text }]}>{dialedPhoneNumber || remoteUserId}</Text>
           <Text style={[styles.callDurationText, { color: theme.text }]}>{formatCallDuration(callDuration)}</Text>
         </View>
         

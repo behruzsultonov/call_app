@@ -42,11 +42,18 @@ function handleGetUsers() {
         sendResponse(false, "Authentication required");
     }
     
-    // Get user ID from query parameters (this refers to the 'id' field in the users table)
+    // Get parameters
     $userId = isset($_GET['user_id']) ? (int)validateInput($_GET['user_id']) : null;
     $search = isset($_GET['search']) ? validateInput($_GET['search']) : null;
+    $subaction = isset($_GET['subaction']) ? validateInput($_GET['subaction']) : null;
     
     try {
+        // Handle subactions
+        if ($subaction === 'find_by_phone') {
+            handleFindUserByPhone($pdo, $search);
+            return;
+        }
+        
         if ($userId) {
             // Get specific user
             $user = getUserById($pdo, $userId);
@@ -56,10 +63,25 @@ function handleGetUsers() {
                 sendResponse(false, "User not found");
             }
         } else if ($search) {
-            // Search users by phone number
+            // Search users by phone number (exact match first)
             $stmt = $pdo->prepare("SELECT id, username, phone_number, avatar FROM users WHERE phone_number = ? LIMIT 1");
             $stmt->execute([$search]);
             $user = $stmt->fetch();
+            
+            // If no exact match, try matching the last N digits (common for local calls)
+            if (!$user) {
+                // Remove all non-digit characters from search term
+                $cleanedSearch = preg_replace('/\D/', '', $search);
+                $searchLength = strlen($cleanedSearch);
+                
+                // Only do suffix matching if we have at least 7 digits (reasonable for a phone number)
+                if ($searchLength >= 7) {
+                    // Search for users whose phone numbers end with the searched digits
+                    $stmt = $pdo->prepare("SELECT id, username, phone_number, avatar FROM users WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone_number, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ? LIMIT 1");
+                    $stmt->execute(["%$cleanedSearch"]);
+                    $user = $stmt->fetch();
+                }
+            }
             
             if ($user) {
                 sendResponse(true, "User found", $user);
@@ -75,6 +97,44 @@ function handleGetUsers() {
         }
     } catch (Exception $e) {
         sendResponse(false, "Error retrieving users: " . $e->getMessage());
+    }
+}
+
+function handleFindUserByPhone($pdo, $phoneNumber) {
+    if (!$phoneNumber) {
+        sendResponse(false, "Phone number is required");
+        return;
+    }
+    
+    try {
+        // First try exact match
+        $stmt = $pdo->prepare("SELECT id, username, phone_number FROM users WHERE phone_number = ? LIMIT 1");
+        $stmt->execute([$phoneNumber]);
+        $user = $stmt->fetch();
+        
+        // If no match and the search number starts with +, try without the +
+        if (!$user && substr($phoneNumber, 0, 1) === '+') {
+            $withoutPlus = substr($phoneNumber, 1);
+            $stmt = $pdo->prepare("SELECT id, username, phone_number FROM users WHERE phone_number = ? LIMIT 1");
+            $stmt->execute([$withoutPlus]);
+            $user = $stmt->fetch();
+        }
+        
+        // If no match and the database number might have +, try with +
+        if (!$user) {
+            $withPlus = '+' . $phoneNumber;
+            $stmt = $pdo->prepare("SELECT id, username, phone_number FROM users WHERE phone_number = ? LIMIT 1");
+            $stmt->execute([$withPlus]);
+            $user = $stmt->fetch();
+        }
+        
+        if ($user) {
+            sendResponse(true, "User found", $user);
+        } else {
+            sendResponse(false, "User not found");
+        }
+    } catch (Exception $e) {
+        sendResponse(false, "Error searching for user: " . $e->getMessage());
     }
 }
 
