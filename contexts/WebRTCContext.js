@@ -288,10 +288,11 @@ export const WebRTCProvider = ({ children }) => {
   const startRecording = async () => {
     console.log('Starting recording');
     try {
-      await webRTCServiceRef.current.startRecording();
+      const success = await webRTCServiceRef.current.startRecording();
+      return success; // Return the success status
     } catch (error) {
       console.error('Error starting recording:', error);
-      throw error;
+      return false; // Return false on error
     }
   };
 
@@ -299,10 +300,11 @@ export const WebRTCProvider = ({ children }) => {
   const stopRecording = async () => {
     console.log('Stopping recording');
     try {
-      await webRTCServiceRef.current.stopRecording();
+      const success = await webRTCServiceRef.current.stopRecording();
+      return success; // Return the success status
     } catch (error) {
       console.error('Error stopping recording:', error);
-      throw error;
+      return false; // Return false on error
     }
   };
 

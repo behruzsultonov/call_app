@@ -657,18 +657,20 @@ class WebRTCService {
   async startRecording() {
     try {
       if (!this.isInCall) {
-        throw new Error('Not in a call');
+        console.log('Not in a call, cannot start recording');
+        return false; // Return false instead of throwing error
       }
 
       if (this.isRecording) {
         console.log('Already recording');
-        return;
+        return true; // Already recording, return success
       }
 
       // Request audio permission
       const hasPermission = await this.requestAudioPermission();
       if (!hasPermission) {
-        throw new Error('Audio recording permission denied');
+        console.log('Audio recording permission denied');
+        return false; // Return false instead of throwing error
       }
 
       // Create filename with timestamp
@@ -726,10 +728,12 @@ class WebRTCService {
       if (this.onRecordingStarted) {
         this.onRecordingStarted(this.recordingFilePath);
       }
+      
+      return true; // Return success
     } catch (error) {
       console.error('Error starting recording:', error);
       this.isRecording = false;
-      throw error;
+      return false; // Return false instead of throwing error
     }
   }
 
@@ -738,7 +742,7 @@ class WebRTCService {
     try {
       if (!this.isRecording) {
         console.log('Not currently recording');
-        return;
+        return true; // Not recording, but that's fine, return success
       }
 
       // Stop recording
@@ -765,6 +769,8 @@ class WebRTCService {
       // Reset recording state
       this.recordingStartTime = null;
       this.recordingFilePath = null;
+      
+      return true; // Return success
     } catch (error) {
       console.error('Error stopping recording:', error);
       // Clean up listeners even if there's an error
@@ -773,7 +779,11 @@ class WebRTCService {
       } catch (e) {
         console.log('Error cleaning up recording listeners:', e);
       }
-      throw error;
+      // Reset recording state even if there's an error
+      this.isRecording = false;
+      this.recordingStartTime = null;
+      this.recordingFilePath = null;
+      return false; // Return false instead of throwing error
     }
   }
 

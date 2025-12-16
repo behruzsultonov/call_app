@@ -46,6 +46,7 @@ const CallScreen = ({ navigation }) => {
   const [callDuration, setCallDuration] = useState(0);
   const [callStartTime, setCallStartTime] = useState(null);
   const [isAccepting, setIsAccepting] = useState(false); // Add state to prevent multiple accepts
+  const [isShowingAlert, setIsShowingAlert] = useState(false); // Track when alert is shown
 
   useEffect(() => {
     // Update streams when they change
@@ -94,11 +95,15 @@ const CallScreen = ({ navigation }) => {
   // Handle app state changes (background/foreground)
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
+      console.log('App state changed to:', nextAppState);
       if (nextAppState === 'background') {
         // App is going to background, end call
-        if (isInCall) {
+        // But only if we're not showing an alert
+        if (isInCall && !isShowingAlert) {
           console.log('App going to background, ending call');
           endCall();
+        } else if (isShowingAlert) {
+          console.log('App going to background while showing alert, not ending call');
         }
       }
     };
@@ -109,7 +114,7 @@ const CallScreen = ({ navigation }) => {
         subscription.remove();
       }
     };
-  }, [isInCall, endCall]);
+  }, [isInCall, endCall, isShowingAlert]);
 
   // Auto-navigate back to Calls screen when call ends
   useEffect(() => {
@@ -184,18 +189,67 @@ const CallScreen = ({ navigation }) => {
   // Handle toggle recording
   const handleToggleRecording = async () => {
     try {
+      console.log('Toggle recording button pressed. Current recording state:', isRecording);
+      
+      // Reset the alert flag after 3 seconds in case user doesn't dismiss
+      const alertTimeout = setTimeout(() => {
+        if (isShowingAlert) {
+          console.log('Resetting isShowingAlert flag after timeout');
+          setIsShowingAlert(false);
+        }
+      }, 3000);
+      
       if (isRecording) {
         console.log('Stopping recording...');
-        await stopRecording();
-        Alert.alert(t('recordingStopped'), t('callRecordingSaved'));
+        setIsShowingAlert(true); // Set flag before showing alert
+        const success = await stopRecording();
+        console.log('Stop recording result:', success);
+        if (success) {
+          Alert.alert(t('recordingStopped'), t('callRecordingSaved'), [
+            { text: 'OK', onPress: () => {
+                setIsShowingAlert(false);
+                clearTimeout(alertTimeout);
+              }
+            }
+          ]);
+        } else {
+          Alert.alert(t('error'), t('failedToStopRecording'), [
+            { text: 'OK', onPress: () => {
+                setIsShowingAlert(false);
+                clearTimeout(alertTimeout);
+              }
+            }
+          ]);
+        }
       } else {
         console.log('Starting recording...');
-        await startRecording();
-        Alert.alert(t('recordingStarted'), t('callIsBeingRecorded'));
+        setIsShowingAlert(true); // Set flag before showing alert
+        const success = await startRecording();
+        console.log('Start recording result:', success);
+        if (success) {
+          Alert.alert(t('recordingStarted'), t('callIsBeingRecorded'), [
+            { text: 'OK', onPress: () => {
+                setIsShowingAlert(false);
+                clearTimeout(alertTimeout);
+              }
+            }
+          ]);
+        } else {
+          Alert.alert(t('error'), t('failedToStartRecording'), [
+            { text: 'OK', onPress: () => {
+                setIsShowingAlert(false);
+                clearTimeout(alertTimeout);
+              }
+            }
+          ]);
+        }
       }
     } catch (error) {
       console.error('Error toggling recording:', error);
+      setIsShowingAlert(false); // Reset flag on error
+      // Show error but don't disconnect the call
       Alert.alert(t('error'), t('failedToToggleRecording') + ': ' + error.message);
+      // Continue with the call - don't end it
     }
   };
 
