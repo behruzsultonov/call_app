@@ -59,7 +59,8 @@ class WebRTCService {
   async initialize() {
     try {
       // Connect to signaling server
-      this.socket = io('https://webrtc-server-n44t.onrender.com', {
+      // this.socket = io('https://webrtc-server-n44t.onrender.com', {
+      this.socket = io('http://34.179.130.224:3500', {
         transports: ['websocket'],
         query: {
           callerId: this.userId.toString(), // Ensure it's a string
