@@ -52,6 +52,9 @@ export const WebRTCProvider = ({ children }) => {
         webRTCServiceRef.current.onConnectionError = handleConnectionError;
         webRTCServiceRef.current.onRecordingStarted = handleRecordingStarted;
         webRTCServiceRef.current.onRecordingStopped = handleRecordingStopped;
+        // Server-side recording handlers
+        webRTCServiceRef.current.onServerRecordingStarted = handleServerRecordingStarted;
+        webRTCServiceRef.current.onServerRecordingStopped = handleServerRecordingStopped;
 
         // Then initialize the service
         await webRTCServiceRef.current.initialize();
@@ -197,11 +200,27 @@ export const WebRTCProvider = ({ children }) => {
     setRecordingFilePath(filePath);
   };
 
+  // Handle server recording started
+  const handleServerRecordingStarted = (recordingData) => {
+    console.log('Server recording started, data:', recordingData);
+    setIsRecording(true);
+    // Set a special value to indicate server recording is active
+    setRecordingFilePath('server-recording');
+  };
+
   // Handle recording stopped
   const handleRecordingStopped = (filePath, duration) => {
     console.log('Recording stopped, file path:', filePath, 'duration:', duration);
     setIsRecording(false);
     // Keep the file path for reference
+  };
+
+  // Handle server recording stopped
+  const handleServerRecordingStopped = (recordingData) => {
+    console.log('Server recording stopped, data:', recordingData);
+    setIsRecording(false);
+    // Reset the recording file path when server recording stops
+    setRecordingFilePath(null);
   };
 
   // Make a call
@@ -286,25 +305,51 @@ export const WebRTCProvider = ({ children }) => {
 
   // Start recording
   const startRecording = async () => {
-    console.log('Starting recording');
+    console.log('Starting server recording');
     try {
-      const success = await webRTCServiceRef.current.startRecording();
-      return success; // Return the success status
+      // Use server-side recording instead of local recording
+      const callId = remoteUserId || userId; // Use remote user ID if available, otherwise use own ID
+      const result = await webRTCServiceRef.current.startServerRecording(callId);
+      return result; // Return the result object
     } catch (error) {
-      console.error('Error starting recording:', error);
-      return false; // Return false on error
+      console.error('Error starting server recording:', error);
+      return { success: false, error: error.message }; // Return error object
     }
   };
 
   // Stop recording
   const stopRecording = async () => {
-    console.log('Stopping recording');
+    console.log('Stopping server recording');
     try {
-      const success = await webRTCServiceRef.current.stopRecording();
-      return success; // Return the success status
+      // Use server-side recording instead of local recording
+      const callId = remoteUserId || userId; // Use remote user ID if available, otherwise use own ID
+      const result = await webRTCServiceRef.current.stopServerRecording(callId);
+      return result; // Return the result object
     } catch (error) {
-      console.error('Error stopping recording:', error);
-      return false; // Return false on error
+      console.error('Error stopping server recording:', error);
+      return { success: false, error: error.message }; // Return error object
+    }
+  };
+
+  // Create send-only transport and produce audio to the server (optional)
+  const startSendToServer = async () => {
+    try {
+      const success = await webRTCServiceRef.current.startSendToServer();
+      return success;
+    } catch (e) {
+      console.error('startSendToServer error:', e);
+      return false;
+    }
+  };
+
+  // Stop sending audio to server
+  const stopSendToServer = async () => {
+    try {
+      const success = await webRTCServiceRef.current.stopSendToServer();
+      return success;
+    } catch (e) {
+      console.error('stopSendToServer error:', e);
+      return false;
     }
   };
 
@@ -355,6 +400,8 @@ export const WebRTCProvider = ({ children }) => {
     toggleCamera,
     startRecording,
     stopRecording,
+    startSendToServer,
+    stopSendToServer,
     getRecordingStatus,
     getUserId,
     getLocalStream,

@@ -34,9 +34,11 @@ const CallScreen = ({ navigation }) => {
     getRemoteStream,
     isInCall,
     userId,
-    isRecording,
+    recordingFilePath,
     startRecording,
     stopRecording,
+    startSendToServer,
+    stopSendToServer,
   } = useWebRTC();
 
   const [isMicOn, setIsMicOn] = useState(true);
@@ -56,23 +58,19 @@ const CallScreen = ({ navigation }) => {
       
       // Only update state if streams have actually changed
       if (newLocalStream && newLocalStream !== localStream) {
-        console.log('Local stream updated:', newLocalStream);
-        console.log('Local stream tracks:', newLocalStream ? newLocalStream.getTracks() : 'No local stream');
         setLocalStream(newLocalStream);
       }
       
       if (newRemoteStream && newRemoteStream !== remoteStream) {
-        console.log('Remote stream updated:', newRemoteStream);
-        console.log('Remote stream tracks:', newRemoteStream ? newRemoteStream.getTracks() : 'No remote stream');
         setRemoteStream(newRemoteStream);
       }
       
       if (newRemoteStream) {
-        console.log('Remote stream URL:', newRemoteStream.toURL());
+        // console.log('Remote stream URL:', newRemoteStream.toURL());
       }
       
       if (newLocalStream) {
-        console.log('Local stream URL:', newLocalStream.toURL());
+        // console.log('Local stream URL:', newLocalStream.toURL());
       }
     };
 
@@ -95,15 +93,15 @@ const CallScreen = ({ navigation }) => {
   // Handle app state changes (background/foreground)
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
-      console.log('App state changed to:', nextAppState);
+      // console.log('App state changed to:', nextAppState);
       if (nextAppState === 'background') {
         // App is going to background, end call
         // But only if we're not showing an alert
         if (isInCall && !isShowingAlert) {
-          console.log('App going to background, ending call');
+          // console.log('App going to background, ending call');
           endCall();
         } else if (isShowingAlert) {
-          console.log('App going to background while showing alert, not ending call');
+          // console.log('App going to background while showing alert, not ending call');
         }
       }
     };
@@ -139,17 +137,17 @@ const CallScreen = ({ navigation }) => {
   const handleAcceptCall = async () => {
     // Prevent multiple accept attempts
     if (isAccepting) {
-      console.log('Already accepting call, skipping duplicate request');
+      // console.log('Already accepting call, skipping duplicate request');
       return;
     }
     
     try {
-      console.log('Accepting call...');
+      // console.log('Accepting call...');
       setIsAccepting(true);
       await acceptCall();
-      console.log('Call accepted successfully');
+      // console.log('Call accepted successfully');
     } catch (error) {
-      console.error('Error accepting call:', error);
+      // console.error('Error accepting call:', error);
       Alert.alert('Error', 'Failed to accept call');
     } finally {
       setIsAccepting(false);
@@ -158,7 +156,7 @@ const CallScreen = ({ navigation }) => {
 
   // Handle reject call
   const handleRejectCall = () => {
-    console.log('Rejecting call...');
+    // console.log('Rejecting call...');
     rejectCall();
     // Navigate back to calls screen
     navigation.navigate('MainTabs', { screen: 'Calls' });
@@ -166,7 +164,7 @@ const CallScreen = ({ navigation }) => {
 
   // Handle end call
   const handleEndCall = () => {
-    console.log('Ending call...');
+    // console.log('Ending call...');
     endCall();
     // Navigate back to calls screen
     navigation.navigate('MainTabs', { screen: 'Calls' });
@@ -174,14 +172,14 @@ const CallScreen = ({ navigation }) => {
 
   // Handle toggle microphone
   const handleToggleMicrophone = () => {
-    console.log('Toggling microphone...');
+    // console.log('Toggling microphone...');
     const newState = toggleMicrophone();
     setIsMicOn(newState);
   };
 
   // Handle toggle camera
   const handleToggleCamera = () => {
-    console.log('Toggling camera...');
+    // console.log('Toggling camera...');
     const newState = toggleCamera();
     setIsCameraOn(newState);
   };
@@ -189,22 +187,29 @@ const CallScreen = ({ navigation }) => {
   // Handle toggle recording
   const handleToggleRecording = async () => {
     try {
-      console.log('Toggle recording button pressed. Current recording state:', isRecording);
+      // console.log('Toggle recording button pressed. Current recording state:', isRecording);
       
       // Reset the alert flag after 3 seconds in case user doesn't dismiss
       const alertTimeout = setTimeout(() => {
         if (isShowingAlert) {
-          console.log('Resetting isShowingAlert flag after timeout');
+          // console.log('Resetting isShowingAlert flag after timeout');
           setIsShowingAlert(false);
         }
       }, 3000);
       
-      if (isRecording) {
-        console.log('Stopping recording...');
+      const currentlyRecording = !!recordingFilePath;
+      if (currentlyRecording) {
+        // console.log('Stopping recording...');
         setIsShowingAlert(true); // Set flag before showing alert
-        const success = await stopRecording();
-        console.log('Stop recording result:', success);
-        if (success) {
+        const result = await stopRecording();
+        // console.log('Stop recording result:', result);
+        if (result && result.success) {
+          // Try to stop send-to-server transport as well
+          try {
+            await stopSendToServer();
+            // console.log('Stopped send transport to server');
+          } catch (e) { console.warn('Failed to stop send transport:', e); }
+
           Alert.alert(t('recordingStopped'), t('callRecordingSaved'), [
             { text: 'OK', onPress: () => {
                 setIsShowingAlert(false);
@@ -222,12 +227,30 @@ const CallScreen = ({ navigation }) => {
           ]);
         }
       } else {
-        console.log('Starting recording...');
+        // console.log('Starting recording...');
         setIsShowingAlert(true); // Set flag before showing alert
-        const success = await startRecording();
-        console.log('Start recording result:', success);
-        if (success) {
+
+        // Ensure we are producing our audio to the server first so it can record both sides
+        let sendOk = false;
+        try {
+          sendOk = await startSendToServer();
+          // console.log('startSendToServer result:', sendOk);
+        } catch (e) {
+          // console.warn('startSendToServer failed:', e);
+        }
+
+        const result = await startRecording();
+        // console.log('Start recording result:', result, 'sendOk:', sendOk);
+        if (result && result.success) {
           Alert.alert(t('recordingStarted'), t('callIsBeingRecorded'), [
+            { text: 'OK', onPress: () => {
+                setIsShowingAlert(false);
+                clearTimeout(alertTimeout);
+              }
+            }
+          ]);
+        } else if (result && result.queued) {
+          Alert.alert(t('recordingQueued') || 'Recording queued', 'Recording will start as soon as audio is available', [
             { text: 'OK', onPress: () => {
                 setIsShowingAlert(false);
                 clearTimeout(alertTimeout);
@@ -245,7 +268,7 @@ const CallScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.error('Error toggling recording:', error);
+      // console.error('Error toggling recording:', error);
       setIsShowingAlert(false); // Reset flag on error
       // Show error but don't disconnect the call
       Alert.alert(t('error'), t('failedToToggleRecording') + ': ' + error.message);
@@ -255,7 +278,7 @@ const CallScreen = ({ navigation }) => {
 
   // Render incoming call screen
   if (callStatus === 'incoming') {
-    console.log('Rendering incoming call screen');
+    // console.log('Rendering incoming call screen');
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Header title={t('incomingCall')} />
@@ -287,7 +310,7 @@ const CallScreen = ({ navigation }) => {
 
   // Render calling screen
   if (callStatus === 'calling') {
-    console.log('Rendering calling screen');
+    // console.log('Rendering calling screen');
     return (
       <View style={styles.container}>
         {/* Top panel - absolute top full width orange block */}
@@ -342,10 +365,10 @@ const CallScreen = ({ navigation }) => {
 
           <View style={styles.option}>
             <TouchableOpacity 
-              style={[styles.iconWrapper, isRecording && styles.recordingActive]}
+              style={[styles.iconWrapper, !!recordingFilePath && styles.recordingActive]}
               onPress={handleToggleRecording}
             >
-              <Icon name={isRecording ? "stop" : "fiber-manual-record"} size={32} color={isRecording ? "#ff0000" : "#000"} />
+              <Icon name={!!recordingFilePath ? "stop" : "fiber-manual-record"} size={32} color={!!recordingFilePath ? "#ff0000" : "#000"} />
             </TouchableOpacity>
             <Text style={styles.label}>{t('record')}</Text>
           </View>
@@ -364,11 +387,11 @@ const CallScreen = ({ navigation }) => {
 
   // Render call in progress screen
   if (callStatus === 'connected') {
-    console.log('Rendering connected call screen');
-    console.log('Remote stream:', remoteStream);
-    console.log('Local stream:', localStream);
-    console.log('Remote stream URL:', remoteStream ? remoteStream.toURL() : 'No remote stream');
-    console.log('Local stream URL:', localStream ? localStream.toURL() : 'No local stream');
+    // console.log('Rendering connected call screen');
+    // console.log('Remote stream:', remoteStream);
+    // console.log('Local stream:', localStream);
+    // console.log('Remote stream URL:', remoteStream ? remoteStream.toURL() : 'No remote stream');
+    // console.log('Local stream URL:', localStream ? localStream.toURL() : 'No local stream');
     
     return (
       <View style={[styles.callContainer, { backgroundColor: theme.background }]}>
@@ -407,7 +430,7 @@ const CallScreen = ({ navigation }) => {
         </View>
         
         {/* Recording indicator */}
-        {isRecording && (
+        {!!recordingFilePath && (
           <View style={styles.recordingIndicator}>
             <Icon name="fiber-manual-record" size={16} color="#ff0000" />
             <Text style={styles.recordingText}>{t('recording')}</Text>
@@ -439,13 +462,13 @@ const CallScreen = ({ navigation }) => {
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.controlButton, isRecording && styles.recordingButton, { backgroundColor: isRecording ? theme.error : theme.cardBackground }]}
+            style={[styles.controlButton, !!recordingFilePath && styles.recordingButton, { backgroundColor: !!recordingFilePath ? theme.error : theme.cardBackground }]}
             onPress={handleToggleRecording}
           >
             <Icon 
-              name={isRecording ? "stop" : "fiber-manual-record"} 
+              name={!!recordingFilePath ? "stop" : "fiber-manual-record"} 
               size={30} 
-              color={isRecording ? theme.buttonText : theme.text} 
+              color={!!recordingFilePath ? theme.buttonText : theme.text} 
             />
           </TouchableOpacity>
           
@@ -461,7 +484,7 @@ const CallScreen = ({ navigation }) => {
   }
 
   // Default screen (no call)
-  console.log('Rendering default screen, callStatus:', callStatus);
+  // console.log('Rendering default screen, callStatus:', callStatus);
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Header title={t('call')} />
