@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,23 +7,31 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
-  Platform,
-  PermissionsAndroid,
+  ActivityIndicator,
 } from 'react-native';
-import RNFS from 'react-native-fs';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import Header from '../components/Header';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Sound from 'react-native-nitro-sound'; // Import for audio playback
+import { getAuthToken } from '../services/Client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNFS from 'react-native-fs';
+
+// Use Node.js server URL directly for recordings - should be configured based on environment
+// In a real app, this would come from a config file or environment variable
+const NODE_SERVER_URL = 'http://34.179.130.224:3500'; // Change this to your actual Node.js server URL
 
 const RecordedCallsScreen = ({ navigation }) => {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const [recordings, setRecordings] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [playingRecording, setPlayingRecording] = useState(null);
   const [audioProgress, setAudioProgress] = useState(0);
+  const [downloadLoading, setDownloadLoading] = useState({});
+  const downloadedFilesRef = useRef(new Set());
 
   // Load recordings when component mounts
   useEffect(() => {
@@ -34,38 +42,70 @@ const RecordedCallsScreen = ({ navigation }) => {
         try {
           Sound.stopPlayer();
           Sound.removePlayBackListener();
+          Sound.removePlaybackEndListener();
+          // Clean up the currently playing recording's file
+          cleanupDownloadedFile(playingRecording.name);
         } catch (error) {
           console.log('Error cleaning up audio playback:', error);
         }
       }
+      
+      // Clean up all downloaded files when component unmounts
+      downloadedFilesRef.current.forEach(fileName => {
+        cleanupDownloadedFile(fileName);
+      });
     };
   }, []);
 
-  // Load all recorded calls
+  // Load all recorded calls from Node.js server
   const loadRecordings = async () => {
     try {
-      // Use DocumentDirectoryPath for both platforms to match where recordings are saved
-      const recordingsDir = RNFS.DocumentDirectoryPath;
-
-      // Read directory contents
-      const files = await RNFS.readDir(recordingsDir);
+      setLoading(true);
       
-      // Filter for call recordings
-      const callRecordings = files
-        .filter(file => file.name.startsWith('call_recording_') && file.name.endsWith('.aac'))
-        .map(file => ({
-          id: file.name,
-          name: file.name,
-          path: file.path,
-          size: file.size,
-          date: new Date(file.mtime),
-        }))
-        .sort((a, b) => b.date - a.date); // Sort by date, newest first
-
-      setRecordings(callRecordings);
+      // Get user ID from storage
+      const userDataString = await AsyncStorage.getItem('userData');
+      if (!userDataString) {
+        Alert.alert(t('error'), t('notLoggedIn'));
+        return;
+      }
+      
+      const userData = JSON.parse(userDataString);
+      const userId = userData.id;
+      if (!userId) {
+        Alert.alert(t('error'), t('notLoggedIn'));
+        return;
+      }
+      
+      const response = await fetch(`${NODE_SERVER_URL}/api/recordings`, {
+        method: 'GET',
+        headers: {
+          'X-User-Id': userId,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Transform server data to match expected format
+        const transformedRecordings = data.items.map((item, index) => ({
+          id: `${item.name}_${index}`, // Create unique ID
+          name: item.name,
+          url: `${NODE_SERVER_URL}${item.url}`, // Full URL for playback
+          size: item.size,
+          date: new Date(item.mtime * 1000), // Convert timestamp to date
+          mtime: item.mtime,
+        })).sort((a, b) => b.mtime - a.mtime); // Sort by date, newest first
+        
+        setRecordings(transformedRecordings);
+      } else {
+        Alert.alert(t('error'), data.message || t('failedToLoadRecordings'));
+      }
     } catch (error) {
       console.error('Error loading recordings:', error);
       Alert.alert(t('error'), t('failedToLoadRecordings'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -109,10 +149,100 @@ const RecordedCallsScreen = ({ navigation }) => {
         return;
       }
       
-      // If another recording is playing, stop it first
-      if (playingRecording !== null) {
+      // If another recording is playing, stop it first and clean up
+      if (playingRecording !== null && playingRecording.id !== recording.id) {
         await Sound.stopPlayer();
         Sound.removePlayBackListener();
+        Sound.removePlaybackEndListener();
+        // Clean up the previously playing recording's file using the original name
+        cleanupDownloadedFile(playingRecording.name);
+      }
+      
+      // Log the URL for debugging
+      console.log('Attempting to play recording URL:', recording.url);
+      
+      // Define fileName first
+      const fileName = recording.name;
+      
+      // Download the file first before playing
+      // Get user ID (same as in loadRecordings)
+      const userDataString = await AsyncStorage.getItem('userData');
+      const userData = JSON.parse(userDataString);
+      const userId = userData.id;
+      
+      // Use CachesDirectoryPath (internal) - more stable and reliable
+      const downloadDest = `${RNFS.CachesDirectoryPath}/${fileName}`;
+      
+      // Ensure the directory exists
+      try {
+        await RNFS.mkdir(RNFS.CachesDirectoryPath);
+      } catch (mkdirError) {
+        console.log('Directory already exists or error creating:', mkdirError);
+      }
+      
+      // Check if file already exists locally, if not download it
+      const fileExists = await RNFS.exists(downloadDest);
+      if (!fileExists) {
+        // Show download loading indicator only when actually downloading
+        setDownloadLoading(prev => ({ ...prev, [recording.id]: true }));
+        
+        console.log('Downloading file:', downloadDest);
+        
+        const download = RNFS.downloadFile({
+          fromUrl: recording.url,
+          toFile: downloadDest,
+          headers: {
+            'X-User-Id': String(userId),
+          },
+          progressDivider: 10,
+        });
+        
+        const res = await download.promise;
+        
+        // IMPORTANT: verify that the file was actually downloaded
+        console.log('Download result:', res);
+        
+        if (res.statusCode !== 200) {
+          // Hide download loading indicator on error
+          setDownloadLoading(prev => ({ ...prev, [recording.id]: false }));
+          throw new Error(`Download failed. statusCode=${res.statusCode}`);
+        }
+        if (!res.bytesWritten || res.bytesWritten <= 0) {
+          // Hide download loading indicator on error
+          setDownloadLoading(prev => ({ ...prev, [recording.id]: false }));
+          throw new Error(`Download failed. bytesWritten=${res.bytesWritten}`);
+        }
+        
+        const finalExists = await RNFS.exists(downloadDest);
+        if (!finalExists) {
+          // Hide download loading indicator on error
+          setDownloadLoading(prev => ({ ...prev, [recording.id]: false }));
+          throw new Error(`Downloaded file missing: ${downloadDest}`);
+        }
+        
+        console.log('Download completed:', downloadDest);
+        // Track that this file has been downloaded
+        downloadedFilesRef.current.add(recording.name);
+        // Hide download loading indicator
+        setDownloadLoading(prev => ({ ...prev, [recording.id]: false }));
+      } else {
+        console.log('File already exists locally:', downloadDest);
+        // Track that this file exists
+        downloadedFilesRef.current.add(recording.name);
+        // No need to show loading indicator since file already exists
+      }
+      
+      // The file should exist at this point since we verified it after download
+      // Verify file is not empty and is accessible
+      try {
+        const statResult = await RNFS.stat(downloadDest);
+        if (parseInt(statResult.size) === 0) {
+          throw new Error(`Downloaded file is empty: ${downloadDest}`);
+        }
+        console.log('File size:', statResult.size, 'bytes');
+      } catch (statError) {
+        console.error('Error getting file stats:', statError);
+        throw new Error(`Could not access downloaded file: ${downloadDest}`);
       }
       
       // Set up playback progress listener
@@ -128,18 +258,41 @@ const RecordedCallsScreen = ({ navigation }) => {
         setAudioProgress(0);
         Sound.removePlayBackListener();
         Sound.removePlaybackEndListener();
+        // Don't clean up the downloaded file after normal playback completion
+        // File will be cleaned up when component unmounts or when switching to another recording
       });
       
-      // Start playback
-      const result = await Sound.startPlayer(`file://${recording.path}`);
+      // Start playback with the local file path
+      // Ensure downloadDest is not null or undefined
+      if (!downloadDest) {
+        throw new Error('Download destination path is null or undefined');
+      }
+      
+      // Try with file:// prefix for Android
+      const result = await Sound.startPlayer(`file://${downloadDest}`);
       console.log('Playback started:', result);
       
       // Mark this recording as playing
       setPlayingRecording(recording);
     } catch (error) {
       console.error('Error playing recording:', error);
-      Alert.alert(t('error'), t('failedToPlayAudio'));
+      // Use recording.url as fallback since downloadDest might not be in scope in error handler
+      console.error('File path attempted:', recording.url);
+      // More robust error handling to avoid null parameter issues
+      try {
+        Alert.alert(t('error'), t('failedToPlayAudio'));
+      } catch (alertError) {
+        console.error('Error showing alert:', alertError);
+      }
       setPlayingRecording(null);
+      // Hide download loading indicator
+      setDownloadLoading(prev => ({ ...prev, [recording.id]: false }));
+      // Clean up the downloaded file if there was an error using the original name
+      try {
+        await cleanupDownloadedFile(recording.name);
+      } catch (cleanupError) {
+        console.error('Error during cleanup:', cleanupError);
+      }
     }
   };
 
@@ -152,9 +305,27 @@ const RecordedCallsScreen = ({ navigation }) => {
         Sound.removePlaybackEndListener();
         setPlayingRecording(null);
         setAudioProgress(0);
+        // Hide download loading indicator if it was showing
+        setDownloadLoading(prev => ({ ...prev, [playingRecording.id]: false }));
       }
     } catch (error) {
       console.error('Error stopping playback:', error);
+    }
+  };
+  
+  // Clean up downloaded file
+  const cleanupDownloadedFile = async (fileName) => {
+    try {
+      const filePath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+      const fileExists = await RNFS.exists(filePath);
+      if (fileExists) {
+        await RNFS.unlink(filePath);
+        console.log('Cleaned up downloaded file:', filePath);
+        // Remove from downloaded files set
+        downloadedFilesRef.current.delete(fileName);
+      }
+    } catch (error) {
+      console.warn('Error cleaning up file:', error);
     }
   };
 
@@ -173,12 +344,8 @@ const RecordedCallsScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await RNFS.unlink(recording.path);
-              // If this recording was playing, stop it
-              if (playingRecording && playingRecording.id === recording.id) {
-                stopPlayback();
-              }
-              // Reload recordings
+              // In a real implementation, you might have a delete endpoint
+              // For now, just reload the list
               loadRecordings();
               Alert.alert(t('success'), t('recordingDeleted'));
             } catch (error) {
@@ -202,7 +369,7 @@ const RecordedCallsScreen = ({ navigation }) => {
           </View>
           <View style={styles.recordingDetails}>
             <Text style={[styles.recordingName, { color: theme.text }]} numberOfLines={1}>
-              {item.name.replace('call_recording_', '').replace('.aac', '')}
+              {item.name.replace('call_', '').replace('.wav', '')}
             </Text>
             <View style={styles.metadataContainer}>
               <Text style={[styles.recordingMeta, { color: theme.textSecondary }]}>
@@ -243,16 +410,23 @@ const RecordedCallsScreen = ({ navigation }) => {
           <TouchableOpacity 
             style={[styles.actionButton, { flex: 1, justifyContent: 'center' }]}
             onPress={() => togglePlayback(item)}
+            disabled={downloadLoading[item.id]}
           >
             <View style={styles.mainActionButton}>
-              <Icon 
-                name={isPlaying ? "pause" : "play-arrow"} 
-                size={20} 
-                color="#FFFFFF" 
-              />
-              <Text style={styles.actionButtonText}>
-                {isPlaying ? t('pause') : t('play')}
-              </Text>
+              {downloadLoading[item.id] ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Icon 
+                    name={isPlaying ? "pause" : "play-arrow"} 
+                    size={20} 
+                    color="#FFFFFF" 
+                  />
+                  <Text style={styles.actionButtonText}>
+                    {isPlaying ? t('pause') : t('play')}
+                  </Text>
+                </>
+              )}
             </View>
           </TouchableOpacity>
           
@@ -270,6 +444,19 @@ const RecordedCallsScreen = ({ navigation }) => {
       </View>
     );
   };
+
+  // Show loading indicator if still loading
+  if (loading && recordings.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background, flex: 1, justifyContent: 'center' }]}>
+        <Header 
+          title={t('recordedCalls')} 
+          onBackPress={() => navigation.goBack()}
+        />
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
