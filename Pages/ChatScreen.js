@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
+import { useWebRTC } from '../contexts/WebRTCContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import ChatHeader from '../components/ChatHeader';
 import api from '../services/Client';
@@ -30,6 +31,7 @@ import AudioWaveform from '../components/AudioWaveform';
 export default function ChatScreen({ route, navigation }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
+  const { makeCall, userId: webRTCUserId } = useWebRTC();
   
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -452,6 +454,68 @@ export default function ChatScreen({ route, navigation }) {
       }
     } catch (error) {
       console.error('Error loading participant name:', error);
+    }
+  };
+
+  const handleCall = async () => {
+    if (!otherParticipantId) {
+      console.log('Cannot make call - no other participant ID available');
+      return;
+    }
+    
+    try {
+      console.log('Initiating call to user ID:', otherParticipantId);
+      
+      // Get the phone number of the other participant for display purposes
+      let phoneNumber = null;
+      try {
+        const response = await api.getUser(otherParticipantId);
+        if (response.data.success && response.data.data) {
+          phoneNumber = response.data.data.phone_number;
+        }
+      } catch (error) {
+        console.log('Could not fetch phone number for call:', error.message);
+      }
+      
+      // Initiate the call using the WebRTC context
+      await makeCall(otherParticipantId.toString(), phoneNumber);
+      
+      // Navigate to the Call screen
+      navigation.navigate('Call');
+    } catch (error) {
+      console.error('Error initiating call:', error);
+      Alert.alert('Error', 'Failed to initiate call: ' + error.message);
+    }
+  };
+
+  const handleVideoCall = async () => {
+    if (!otherParticipantId) {
+      console.log('Cannot make video call - no other participant ID available');
+      return;
+    }
+    
+    try {
+      console.log('Initiating video call to user ID:', otherParticipantId);
+      
+      // Get the phone number of the other participant for display purposes
+      let phoneNumber = null;
+      try {
+        const response = await api.getUser(otherParticipantId);
+        if (response.data.success && response.data.data) {
+          phoneNumber = response.data.data.phone_number;
+        }
+      } catch (error) {
+        console.log('Could not fetch phone number for video call:', error.message);
+      }
+      
+      // Initiate the video call using the WebRTC context
+      await makeCall(otherParticipantId.toString(), phoneNumber);
+      
+      // Navigate to the Call screen
+      navigation.navigate('Call');
+    } catch (error) {
+      console.error('Error initiating video call:', error);
+      Alert.alert('Error', 'Failed to initiate video call: ' + error.message);
     }
   };
 
@@ -1065,8 +1129,8 @@ export default function ChatScreen({ route, navigation }) {
       <ChatHeader 
         title={otherParticipantName || chatName}
         onBackPress={() => navigation.goBack()} 
-        onCallPress={() => console.log('Call pressed')}
-        onVideoCallPress={() => console.log('Video call pressed')}
+        onCallPress={handleCall}
+        onVideoCallPress={handleVideoCall}
         onContactInfoPress={() => {
           // Pass contact data when navigating to ContactInfo screen
           if (isPrivateChat && otherParticipantId) {
