@@ -39,6 +39,7 @@ const CallScreen = ({ navigation }) => {
     stopRecording,
     startSendToServer,
     stopSendToServer,
+    isVideoCall,
   } = useWebRTC();
 
   const [isMicOn, setIsMicOn] = useState(true);
@@ -332,6 +333,7 @@ const CallScreen = ({ navigation }) => {
             <Text style={styles.label}>{t('sound')}</Text>
           </View>
 
+          {isVideoCall && (
           <View style={styles.option}>
             <TouchableOpacity 
               style={styles.iconWrapper}
@@ -341,6 +343,7 @@ const CallScreen = ({ navigation }) => {
             </TouchableOpacity>
             <Text style={styles.label}>{t('video')}</Text>
           </View>
+          )}
 
           <View style={styles.option}>
             <View style={styles.iconWrapper}>
@@ -409,19 +412,20 @@ const CallScreen = ({ navigation }) => {
           </View>
         )}
         
-        {/* Local video stream (picture-in-picture) */}
-        {localStream ? (
+        {/* Local video stream (picture-in-picture) - only show for video calls */}
+        {console.log('Local video render - isVideoCall:', isVideoCall, 'localStream:', localStream ? 'exists' : 'null', 'callStatus:', callStatus, 'callTypeCheck:', isVideoCall ? 'VIDEO CALL' : 'AUDIO CALL')}
+        {isVideoCall && localStream ? (
           <RTCView
             streamURL={localStream.toURL()}
             style={styles.localVideo}
             objectFit="cover"
             mirror={true}
           />
-        ) : (
-          <View style={[styles.localVideo, styles.localVideoPlaceholder, { backgroundColor: theme.cardBackground }]}>
+        ) : isVideoCall ? (
+          <View style={[styles.localVideo, styles.localVideoPlaceholder, { backgroundColor: theme.cardBackground }]}> 
             <Text style={[styles.localVideoText, { color: theme.text }]}>{t('noLocalVideo')}</Text>
           </View>
-        )}
+        ) : null}
         
         {/* Call info */}
         <View style={styles.callInfo}>
@@ -450,6 +454,7 @@ const CallScreen = ({ navigation }) => {
             />
           </TouchableOpacity>
           
+          {isVideoCall && (
           <TouchableOpacity
             style={[styles.controlButton, !isCameraOn && styles.disabledButton, { backgroundColor: !isCameraOn ? theme.error : theme.cardBackground }]}
             onPress={handleToggleCamera}
@@ -460,6 +465,7 @@ const CallScreen = ({ navigation }) => {
               color={isCameraOn ? theme.text : theme.buttonText} 
             />
           </TouchableOpacity>
+          )}
           
           <TouchableOpacity
             style={[styles.controlButton, !!recordingFilePath && styles.recordingButton, { backgroundColor: !!recordingFilePath ? theme.error : theme.cardBackground }]}

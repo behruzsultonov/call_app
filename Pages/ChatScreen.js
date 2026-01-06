@@ -457,7 +457,7 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  const handleCall = async () => {
+  const handleCall = async (isVideoCall = false) => {
     if (!otherParticipantId) {
       console.log('Cannot make call - no other participant ID available');
       return;
@@ -478,7 +478,7 @@ export default function ChatScreen({ route, navigation }) {
       }
       
       // Initiate the call using the WebRTC context
-      await makeCall(otherParticipantId.toString(), phoneNumber);
+      await makeCall(otherParticipantId.toString(), phoneNumber, isVideoCall);
       
       // Navigate to the Call screen
       navigation.navigate('Call');
@@ -488,36 +488,15 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  const handleVideoCall = async () => {
-    if (!otherParticipantId) {
-      console.log('Cannot make video call - no other participant ID available');
-      return;
-    }
-    
-    try {
-      console.log('Initiating video call to user ID:', otherParticipantId);
-      
-      // Get the phone number of the other participant for display purposes
-      let phoneNumber = null;
-      try {
-        const response = await api.getUser(otherParticipantId);
-        if (response.data.success && response.data.data) {
-          phoneNumber = response.data.data.phone_number;
-        }
-      } catch (error) {
-        console.log('Could not fetch phone number for video call:', error.message);
-      }
-      
-      // Initiate the video call using the WebRTC context
-      await makeCall(otherParticipantId.toString(), phoneNumber);
-      
-      // Navigate to the Call screen
-      navigation.navigate('Call');
-    } catch (error) {
-      console.error('Error initiating video call:', error);
-      Alert.alert('Error', 'Failed to initiate video call: ' + error.message);
-    }
+  const handleAudioCall = async () => {
+    await handleCall(false); // Audio-only call
   };
+
+  const handleVideoCall = async () => {
+    await handleCall(true); // Video call
+  };
+
+
 
   const renderMessage = ({ item, index }) => {
     // Handle deleted messages
@@ -1129,7 +1108,7 @@ export default function ChatScreen({ route, navigation }) {
       <ChatHeader 
         title={otherParticipantName || chatName}
         onBackPress={() => navigation.goBack()} 
-        onCallPress={handleCall}
+        onCallPress={handleAudioCall}
         onVideoCallPress={handleVideoCall}
         onContactInfoPress={() => {
           // Pass contact data when navigating to ContactInfo screen

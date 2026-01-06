@@ -223,7 +223,7 @@ const CallsScreen = ({ navigation }) => {
         
         if (user && user.id) {
           // User exists, proceed with the call using their actual user ID
-          await makeCall(user.id.toString(), phoneNumber); // Pass the phone number as well
+          await makeCall(user.id.toString(), phoneNumber, false); // Pass the phone number as well, and set isVideoCall to false for audio-only call
         } else {
           // User doesn't exist, show error message
           Alert.alert(t('userNotFound'), t('userDoesNotExist'));

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 // Base URLs - try HTTPS first, then HTTP as fallback
-const CHAT_API_URL_HTTPS = 'https://sadoapp.tj/callapp-be/';
+const CHAT_API_URL_HTTPS = 'http://sadoapp.tj/callapp-be/';
 const CHAT_API_URL_HTTP = 'http://sadoapp.tj/callapp-be/';
 let CHAT_API_URL = CHAT_API_URL_HTTPS; // Start with HTTPS
 

@@ -20,8 +20,10 @@ export const WebRTCProvider = ({ children }) => {
   const [localStream, setLocalStream] = useState(null); // Add state for local stream
   const [isRecording, setIsRecording] = useState(false); // Add state for recording
   const [recordingFilePath, setRecordingFilePath] = useState(null); // Add state for recording file path
+  const [isVideoCall, setIsVideoCall] = useState(false); // Add state to track if call is video or audio-only, default to audio
 
   const webRTCServiceRef = useRef(null);
+  const isVideoCallRef = useRef(false); // Ref to store isVideoCall state to prevent race conditions
 
   useEffect(() => {
     // Initialize WebRTC service
@@ -109,10 +111,14 @@ export const WebRTCProvider = ({ children }) => {
   }, [userId]);
 
   // Handle incoming call
-  const handleIncomingCall = async (callerId, offer) => {
-    console.log('Handling incoming call from:', callerId);
+  const handleIncomingCall = async (callerId, callType, offer) => {
+    console.log('Handling incoming call from:', callerId, 'with call type:', callType);
     setCallStatus('incoming');
     setRemoteUserId(callerId);
+    // Set whether this is a video or audio-only call based on callType
+    const isVideo = callType === 'video';
+    isVideoCallRef.current = isVideo;
+    setIsVideoCall(isVideo);
     webRTCServiceRef.current.currentOffer = offer;
     
     // Fetch caller's phone number for display
@@ -160,12 +166,15 @@ export const WebRTCProvider = ({ children }) => {
   const handleCallEnded = () => {
     console.log('Call ended, cleaning up state');
     setCallStatus('ended');
+    isVideoCallRef.current = false;
+    setIsVideoCall(false);
     setIsInCall(false);
     setRemoteUserId('');
     setRemoteUserPhoneNumber(''); // Clear remote user phone number
     setDialedPhoneNumber(''); // Clear dialed phone number
     setRemoteStream(null); // Clear remote stream
-    setLocalStream(null); // Clear local stream
+    // Preserve local stream from service to avoid losing camera/mic access
+    setLocalStream(webRTCServiceRef.current?.getLocalStream() || null); // Keep local stream from service
     setIsRecording(false); // Stop recording when call ends
     setRecordingFilePath(null); // Clear recording file path
     
@@ -182,10 +191,13 @@ export const WebRTCProvider = ({ children }) => {
   const handleConnectionError = (error) => {
     console.error('Connection error:', error);
     setCallStatus('ended');
+    isVideoCallRef.current = false;
+    setIsVideoCall(false);
     setIsInCall(false);
     setRemoteUserId('');
     setRemoteStream(null); // Clear remote stream
-    setLocalStream(null); // Clear local stream
+    // Preserve local stream from service to avoid losing camera/mic access
+    setLocalStream(webRTCServiceRef.current?.getLocalStream() || null); // Keep local stream from service
     setIsRecording(false); // Stop recording on error
     setRecordingFilePath(null); // Clear recording file path
     
@@ -224,7 +236,7 @@ export const WebRTCProvider = ({ children }) => {
   };
 
   // Make a call
-  const makeCall = async (targetUserId, phoneNumber = null) => {
+  const makeCall = async (targetUserId, phoneNumber = null, isVideoCall = false) => {
     // Validate that we have a target user ID
     if (!targetUserId) {
       throw new Error('Target user ID is required.');
@@ -240,7 +252,10 @@ export const WebRTCProvider = ({ children }) => {
       setCallStatus('calling');
       setRemoteUserId(targetUserId.toString()); // Ensure it's a string
       setDialedPhoneNumber(phoneNumber || targetUserId.toString()); // Store the dialed phone number or fallback to user ID
-      await webRTCServiceRef.current.makeCall(targetUserId.toString()); // Ensure it's a string
+      console.log('Setting isVideoCall in makeCall to:', isVideoCall);
+      isVideoCallRef.current = isVideoCall;
+      setIsVideoCall(isVideoCall); // Set whether this is a video or audio-only call
+      await webRTCServiceRef.current.makeCall(targetUserId.toString(), isVideoCall); // Ensure it's a string
       // Update local stream after making call
       const stream = webRTCServiceRef.current.getLocalStream();
       console.log('Local stream after making call:', stream);
@@ -256,9 +271,13 @@ export const WebRTCProvider = ({ children }) => {
   const acceptCall = async () => {
     console.log('Accepting call from:', remoteUserId);
     try {
+      const currentIsVideo = isVideoCallRef.current; // take from ref to prevent race conditions (already set in handleIncomingCall)
+      console.log('Accepting call. isVideoCall:', currentIsVideo);
+      
       await webRTCServiceRef.current.answerCall(
         remoteUserId,
-        webRTCServiceRef.current.currentOffer
+        webRTCServiceRef.current.currentOffer,
+        currentIsVideo
       );
       // Update UI state immediately after accepting
       setCallStatus('connected');
@@ -392,6 +411,7 @@ export const WebRTCProvider = ({ children }) => {
     dialedPhoneNumber,
     isRecording,
     recordingFilePath,
+    isVideoCall,
     makeCall,
     acceptCall,
     rejectCall,

@@ -28,6 +28,7 @@ class WebRTCService {
     this.isInCall = false;
     this.isCaller = false;
     this.currentCallTarget = null;
+    this.isVideoCall = false; // Track if this is a video or audio call, default to audio
     this.isAnsweringCall = false; // Add flag to prevent multiple answer attempts
     this.pendingICECandidates = []; // Queue for ICE candidates received before remote description
 
@@ -119,10 +120,11 @@ class WebRTCService {
     this.socket.on('newCall', (data) => {
       console.log('Incoming call from:', data.callerId);
       console.log('Offer data:', data.rtcMessage);
+      console.log('Call type:', data.callType);
       // Set the caller as the current call target
       this.currentCallTarget = data.callerId;
       if (this.onIncomingCall) {
-        this.onIncomingCall(data.callerId, data.rtcMessage);
+        this.onIncomingCall(data.callerId, data.callType, data.rtcMessage);
       }
     });
 
@@ -219,20 +221,25 @@ class WebRTCService {
   }
 
   // Initialize media devices with better configuration
-  async initializeMediaDevices() {
+  async initializeMediaDevices(isVideoCall = true) {
     try {
       const devices = await mediaDevices.enumerateDevices();
       console.log('Available media devices:', devices);
 
-      this.localStream = await mediaDevices.getUserMedia({
+      const constraints = {
         audio: true,
-        video: {
+      };
+
+      if (isVideoCall) {
+        constraints.video = {
           width: { min: 640, ideal: 1280, max: 1920 },
           height: { min: 360, ideal: 720, max: 1080 },
           frameRate: { min: 15, ideal: 30, max: 60 },
           facingMode: 'user', // 'user' for front camera, 'environment' for back
-        },
-      });
+        };
+      }
+
+      this.localStream = await mediaDevices.getUserMedia(constraints);
 
       console.log('Local stream acquired with tracks:', this.localStream.getTracks());
       return this.localStream;
@@ -389,9 +396,10 @@ class WebRTCService {
   }
 
   // Make a call to another user
-  async makeCall(targetUserId) {
+  async makeCall(targetUserId, isVideoCall = false) {
     try {
       this.isCaller = true;
+      this.isVideoCall = isVideoCall; // Set whether this is a video or audio-only call
       this.currentCallTarget = targetUserId.toString(); // Ensure it's a string
 
       // Ensure we have a peer connection
@@ -401,7 +409,7 @@ class WebRTCService {
 
       // Ensure we have a media stream
       if (!this.localStream) {
-        await this.initializeMediaDevices();
+        await this.initializeMediaDevices(isVideoCall);
         if (this.peerConnection && this.localStream) {
           // Add stream to peer connection
           if (this.peerConnection.addStream) {
@@ -419,7 +427,7 @@ class WebRTCService {
       console.log('Creating offer to:', this.currentCallTarget);
       const sessionDescription = await this.peerConnection.createOffer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: true,
+        offerToReceiveVideo: isVideoCall,
       });
       console.log('Offer created:', sessionDescription);
       await this.peerConnection.setLocalDescription(sessionDescription);
@@ -427,6 +435,7 @@ class WebRTCService {
       console.log('Sending call to:', this.currentCallTarget);
       this.socket.emit('call', {
         calleeId: this.currentCallTarget,
+        callType: isVideoCall ? 'video' : 'audio',
         rtcMessage: sessionDescription,
       });
 
@@ -446,7 +455,7 @@ class WebRTCService {
   }
 
   // Answer an incoming call
-  async answerCall(callerId, offer) {
+  async answerCall(callerId, offer, isVideoCall = false) {
     // Prevent multiple answer attempts
     if (this.isAnsweringCall) {
       console.log('Already answering call, skipping duplicate request');
@@ -456,6 +465,7 @@ class WebRTCService {
     try {
       this.isAnsweringCall = true;
       this.isCaller = false;
+      this.isVideoCall = isVideoCall; // Set whether this is a video or audio-only call
       this.currentCallTarget = callerId.toString(); // Ensure it's a string
 
       // Stop ringing when answering the call
@@ -468,7 +478,7 @@ class WebRTCService {
 
       // Ensure we have a media stream
       if (!this.localStream) {
-        await this.initializeMediaDevices();
+        await this.initializeMediaDevices(isVideoCall);
         if (this.peerConnection && this.localStream) {
           // Add stream to peer connection
           if (this.peerConnection.addStream) {
@@ -495,7 +505,7 @@ class WebRTCService {
       console.log('Creating answer');
       const sessionDescription = await this.peerConnection.createAnswer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: true,
+        offerToReceiveVideo: isVideoCall,
       });
       console.log('Answer created:', sessionDescription);
       await this.peerConnection.setLocalDescription(sessionDescription);

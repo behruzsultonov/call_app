@@ -60,8 +60,10 @@ const CallManager = ({ children }) => {
   }, []);
 
   // Handle incoming call
-  const handleIncomingCall = (callerId, offer) => {
+  const handleIncomingCall = (callerId, callType, offer) => {
     setCallerId(callerId);
+    // Set the isVideoCall property on the WebRTC service based on callType
+    webRTCServiceRef.current.isVideoCall = callType === 'video';
     setShowIncomingCall(true);
     webRTCServiceRef.current.currentOffer = offer;
   };
@@ -144,7 +146,8 @@ const CallManager = ({ children }) => {
       // Answer the call
       await webRTCServiceRef.current.answerCall(
         callerId,
-        webRTCServiceRef.current.currentOffer
+        webRTCServiceRef.current.currentOffer,
+        webRTCServiceRef.current.isVideoCall
       );
     } catch (error) {
       console.error('Error accepting call:', error);
@@ -263,8 +266,8 @@ const CallManager = ({ children }) => {
           </View>
         )}
         
-        {/* Local video stream (picture-in-picture) */}
-        {localStream && (
+        {/* Local video stream (picture-in-picture) - only for video calls */}
+        {webRTCServiceRef.current.isVideoCall && localStream && (
           <View style={styles.localVideoContainer}>
             <RTCView
               streamURL={localStream.toURL()}
