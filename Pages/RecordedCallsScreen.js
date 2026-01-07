@@ -330,7 +330,7 @@ const RecordedCallsScreen = ({ navigation }) => {
   };
 
   // Delete recording
-  const deleteRecording = (recording) => {
+  const deleteRecording = async (recording) => {
     Alert.alert(
       t('deleteRecording'),
       t('deleteRecordingConfirmation'),
@@ -344,10 +344,39 @@ const RecordedCallsScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // In a real implementation, you might have a delete endpoint
-              // For now, just reload the list
-              loadRecordings();
-              Alert.alert(t('success'), t('recordingDeleted'));
+              // Get user ID from storage
+              const userDataString = await AsyncStorage.getItem('userData');
+              if (!userDataString) {
+                Alert.alert(t('error'), t('notLoggedIn'));
+                return;
+              }
+              
+              const userData = JSON.parse(userDataString);
+              const userId = userData.id;
+              if (!userId) {
+                Alert.alert(t('error'), t('notLoggedIn'));
+                return;
+              }
+              
+              // Call the server endpoint to delete the recording
+              const response = await fetch(`${NODE_SERVER_URL}/api/recordings/${encodeURIComponent(recording.name)}`, {
+                method: 'DELETE',
+                headers: {
+                  'X-User-Id': userId,
+                  'Content-Type': 'application/json',
+                },
+              });
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                // Reload the recordings list
+                await loadRecordings();
+                Alert.alert(t('success'), t('recordingDeleted'));
+              } else {
+                console.error('Error deleting recording:', result.message);
+                Alert.alert(t('error'), result.message || t('failedToDeleteRecording'));
+              }
             } catch (error) {
               console.error('Error deleting recording:', error);
               Alert.alert(t('error'), t('failedToDeleteRecording'));
