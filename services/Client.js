@@ -331,6 +331,11 @@ api.getUserByPhoneNumber = (phoneNumber) =>
     params: { action: 'users', subaction: 'find_by_phone', search: phoneNumber },
   });
 
+api.getUserByUsername = (username) =>
+  apiClient.get('index.php', {
+    params: { action: 'users', subaction: 'find_by_username', search: username },
+  });
+
 api.getUser = (userId) =>
   apiClient.get('index.php', {
     params: { action: 'users', user_id: Number(userId) },
@@ -351,6 +356,42 @@ api.getContacts = (userId) =>
     params: { action: 'contacts', user_id: Number(userId) },
   });
 
+api.getBlockedContacts = (userId) =>
+  apiClient.get('index.php', {
+    params: { action: 'contacts', subaction: 'blocked', user_id: Number(userId) },
+  });
+
+api.blockContact = (data) =>
+  apiClient.delete('index.php', {
+    params: {
+      action: 'contacts',
+      subaction: 'block'
+    },
+    data: {
+      user_id: Number(data.user_id),
+      blocked_user_id: Number(data.blocked_user_id),
+      blocked_phone: data.blocked_phone
+    }
+  });
+
+api.unblockContact = (data) =>
+  apiClient.delete('index.php', {
+    params: {
+      action: 'contacts',
+      subaction: 'unblock'
+    },
+    data: {
+      user_id: Number(data.user_id),
+      blocked_user_id: Number(data.blocked_user_id),
+      blocked_phone: data.blocked_phone
+    }
+  });
+
+api.checkBlockedStatus = (userId, otherUserId) =>
+  apiClient.get('index.php', {
+    params: { action: 'contacts', subaction: 'check_blocked_status', user_id: Number(userId), other_user_id: Number(otherUserId) },
+  });
+
 api.addContactByPhone = (userId, phoneNumber) =>
   apiClient.get('index.php', {
     params: { action: 'contacts', subaction: 'add_by_phone', user_id: Number(userId), phone: phoneNumber },
@@ -364,6 +405,28 @@ api.updateContact = (data) =>
 
 api.deleteContact = (data) =>
   apiClient.delete('index.php?action=contacts', { data });
+
+// ------------------ SEARCH ------------------
+api.searchChats = (userId, searchTerm) =>
+  apiClient.get('index.php', {
+    params: { action: 'search', type: 'chats', user_id: Number(userId), q: searchTerm },
+  });
+
+api.searchMessages = (userId, searchTerm, chatId = null) =>
+  apiClient.get('index.php', {
+    params: { 
+      action: 'search', 
+      type: 'messages', 
+      user_id: Number(userId), 
+      q: searchTerm,
+      ...(chatId && { chat_id: Number(chatId) })
+    },
+  });
+
+api.searchContacts = (userId, searchTerm) =>
+  apiClient.get('index.php', {
+    params: { action: 'search', type: 'contacts', user_id: Number(userId), q: searchTerm },
+  });
 
 // ------------------ AUTH ------------------
 api.sendOTP = (phoneNumber) => {
@@ -460,6 +523,34 @@ api.resetConnections = () => {
     console.error('Error resetting connections:', error);
     return false;
   }
+};
+
+// Get call history
+api.getCallHistory = (userId) => {
+  return apiClient.get('index.php', {
+    params: {
+      action: 'calls',
+      subaction: 'get_history',
+      user_id: Number(userId)
+    },
+  });
+};
+
+// Save a call to history
+api.saveCall = (data) => {
+  return apiClient.post('index.php?action=calls&subaction=save_call', data);
+};
+
+// Delete a call from history
+api.deleteCall = (callId, userId) => {
+  return apiClient.delete('index.php', {
+    params: {
+      action: 'calls',
+      subaction: 'delete_call',
+      call_id: Number(callId),
+      user_id: Number(userId)
+    },
+  });
 };
 
 // Check HTTPS certificate validity

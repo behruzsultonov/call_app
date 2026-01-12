@@ -8,6 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import api from '../services/Client'; // Import the API client
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
 // DialPad Component
 const DialPad = ({ onPressDigit, onClose, onCall, onDelete, t, theme }) => {
   const digits = [
@@ -64,7 +65,7 @@ const CallsScreen = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [actualUserId, setActualUserId] = useState(null);
   
-  const { userId, makeCall, callStatus } = useWebRTC();
+  const { userId, makeCall, callStatus, setCallHistoryRefreshCallback } = useWebRTC();
   
   // Load actual user ID from AsyncStorage
   useEffect(() => {
@@ -83,39 +84,80 @@ const CallsScreen = ({ navigation }) => {
     loadUserData();
   }, []);
 
-  // Call data
-  const calls = [
-    {
-      id: "1",
-      number: "992987654321",
-      type: "missed",
-      time: "20:36",
-    },
-    {
-      id: "2",
-      number: "992987654321",
-      type: "missed",
-      time: "20:36",
-    },
-    {
-      id: "3",
-      number: "987654321",
-      type: "outgoing",
-      time: "20:34",
-    },
-    {
-      id: "4",
-      number: "987654321",
-      type: "incoming",
-      time: "20:33",
-    },
-    {
-      id: "5",
-      number: "987654321",
-      type: "outgoing",
-      time: "20:33",
-    },
-  ];
+  const [callHistory, setCallHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Fetch call history from API
+  
+  // Fetch call history from API
+  useEffect(() => {
+    if (actualUserId) {
+      fetchCallHistory();
+    }
+  }, [actualUserId]);
+  
+  // Set up callback to refresh call history when a call is saved
+  useEffect(() => {
+    if (setCallHistoryRefreshCallback && actualUserId) {
+      setCallHistoryRefreshCallback(() => {
+        console.log('Refreshing call history after call ended');
+        fetchCallHistory();
+      });
+    }
+  }, [setCallHistoryRefreshCallback, actualUserId]);
+  
+  const deleteCall = async (callId) => {
+    Alert.alert(
+      t('confirmDelete'),
+      t('deleteCallConfirmation'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await api.deleteCall(callId, actualUserId);
+              
+              if (response.data.success) {
+                // Refresh the call history to reflect the deletion
+                fetchCallHistory();
+              } else {
+                console.error('Failed to delete call:', response.data.message);
+                Alert.alert(t('error'), response.data.message || t('failedToDeleteCall'));
+              }
+            } catch (error) {
+              console.error('Error deleting call:', error);
+              Alert.alert(t('error'), t('failedToDeleteCall'));
+            }
+          }
+        }
+      ]
+    );
+  };
+  
+  const fetchCallHistory = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching call history for user ID:', actualUserId);
+      const response = await api.getCallHistory(actualUserId);
+      
+      console.log('Call history response:', response.data);
+      
+      if (response.data.success) {
+        setCallHistory(response.data.data || []);
+      } else {
+        console.error('Failed to fetch call history:', response.data.message || 'Unknown error');
+        setCallHistory([]);
+      }
+    } catch (error) {
+      console.error('Error fetching call history:', error);
+      console.error('Error details:', error.message || error);
+      setCallHistory([]);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // Цвета статусов
   const statusColors = {
@@ -142,32 +184,46 @@ const CallsScreen = ({ navigation }) => {
     <TouchableOpacity 
       style={[styles.callRow, { borderBottomColor: theme.border }]}
       onPress={() => navigation.navigate('CallInfo', { phoneNumber: item.number })}
+      onLongPress={() => {
+        Alert.alert(
+          t('deleteCall'),
+          t('deleteCallConfirmation'),
+          [
+            { text: t('cancel'), style: 'cancel' },
+            {
+              text: t('delete'),
+              style: 'destructive',
+              onPress: () => deleteCall(item.id)
+            }
+          ]
+        );
+      }}
     >
       {/* Аватар */}
       <View style={styles.avatar}>
         <Icon name="person" size={34} color={theme.textSecondary} />
       </View>
-
+  
       {/* Контент */}
       <View style={styles.callContent}>
         <Text style={[styles.phone, { color: theme.text }]}>{item.number}</Text>
-
+  
         <View style={styles.statusRow}>
           <Icon
             name={statusIcons[item.type]}
             size={18}
             color={statusColors[item.type]}
           />
-          <Text style={[styles.statusText, { color: statusColors[item.type] }]}>
+          <Text style={[styles.statusText, { color: statusColors[item.type] }]}>            
             {statusLabels[item.type]}
           </Text>
         </View>
-
+  
         <Text style={[styles.time, { color: theme.textSecondary }]}>{item.time}</Text>
       </View>
-
+  
       {/* Кнопка звонка */}
-      <TouchableOpacity style={[styles.listCallButton, { backgroundColor: theme.primary }]}>
+      <TouchableOpacity style={[styles.listCallButton, { backgroundColor: theme.primary }]}>        
         <Icon name="call" size={20} color={theme.buttonText} />
       </TouchableOpacity>
     </TouchableOpacity>
@@ -222,6 +278,19 @@ const CallsScreen = ({ navigation }) => {
         const user = response.data.data;
         
         if (user && user.id) {
+          // Check if there's a bidirectional block between users before making the call
+          const userDataString = await AsyncStorage.getItem('userData');
+          if (userDataString) {
+            const currentUser = JSON.parse(userDataString);
+            
+            const blockCheckResponse = await api.checkBlockedStatus(currentUser.id, user.id);
+            
+            if (blockCheckResponse.data.success && blockCheckResponse.data.data && blockCheckResponse.data.data.is_blocked) {
+              Alert.alert(t('blocked'), t('cannotCallBlockedUser'));
+              return;
+            }
+          }
+          
           // User exists, proceed with the call using their actual user ID
           await makeCall(user.id.toString(), phoneNumber, false); // Pass the phone number as well, and set isVideoCall to false for audio-only call
         } else {
@@ -254,10 +323,21 @@ const CallsScreen = ({ navigation }) => {
 
           {/* LIST */}
           <FlatList
-            data={calls}
-            keyExtractor={(item) => item.id}
+            data={callHistory}
+            keyExtractor={(item) => item.id.toString()}
             renderItem={renderCallItem}
             contentContainerStyle={{ paddingBottom: 100 }}
+            ListEmptyComponent={
+              loading ? (
+                <View style={[styles.emptyContainer, { backgroundColor: theme.cardBackground }]}> 
+                  <Text style={[styles.emptyText, { color: theme.text }]}>Loading...</Text>
+                </View>
+              ) : (
+                <View style={[styles.emptyContainer, { backgroundColor: theme.cardBackground }]}> 
+                  <Text style={[styles.emptyText, { color: theme.text }]}>{t('noCallHistory')}</Text>
+                </View>
+              )
+            }
           />
 
           <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary }]} onPress={toggleDialer}>
@@ -386,6 +466,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#777',
+  },
 
   fab: {
     position: 'absolute',
@@ -482,7 +571,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  deleteButton: {
-    padding: 10,
-  },
+
 });

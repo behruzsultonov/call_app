@@ -1,11 +1,41 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../contexts/ThemeContext';
 
-const Header = ({ title, showSearch = false, onSearchPress, onBack }) => {
+const Header = ({ title, showSearch = false, onSearchPress, onBack, searchVisible = false, onSearchChange = null, searchValue = '' }) => {
   const { theme } = useTheme();
-
+  
+  if (searchVisible) {
+    return (
+      <View style={[styles.container, { 
+        backgroundColor: theme.headerBackground,
+        borderBottomColor: theme.border,
+        shadowColor: theme.text
+      }]}>        
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Icon name="arrow-back" size={24} color={theme.primary} />
+        </TouchableOpacity>
+        
+        <TextInput
+          style={[styles.searchInput, { color: theme.text, backgroundColor: theme.cardBackground }]}
+          placeholder="Search..."
+          placeholderTextColor={theme.placeholder}
+          value={searchValue}
+          onChangeText={onSearchChange}
+          autoFocus={true}
+        />
+        
+        <TouchableOpacity onPress={() => {
+          if (onSearchPress) onSearchPress(false);
+          if (onSearchChange) onSearchChange('');
+        }}>
+          <Icon name="close" size={24} color={theme.primary} />
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  
   return (
     <View style={[styles.container, { 
       backgroundColor: theme.headerBackground,
@@ -21,7 +51,7 @@ const Header = ({ title, showSearch = false, onSearchPress, onBack }) => {
       )}
       <Text style={[styles.title, { color: theme.primary }]}>{title}</Text>
       {showSearch ? (
-        <TouchableOpacity onPress={onSearchPress}>
+        <TouchableOpacity onPress={() => onSearchPress && onSearchPress(true)}>
           <Icon name="search" size={24} color={theme.primary} />
         </TouchableOpacity>
       ) : (
@@ -62,6 +92,16 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 24, // Same width as icons to keep title centered
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    marginHorizontal: 16,
   },
 });
 

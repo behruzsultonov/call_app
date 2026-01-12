@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
@@ -22,8 +23,42 @@ export default function ContactsScreen({ navigation, route }) {
   const { theme } = useTheme();
   
   const [contacts, setContacts] = useState([]);
+  const [filteredContacts, setFilteredContacts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [blockedContacts, setBlockedContacts] = useState(new Set());
+  
+  const normalizePhone = (p) => (p || '').toString().replace(/[^\d+]/g, '');
+
+  const normalizeRegular = (c) => ({
+    ...c,
+    is_blocked: false,
+    contact_user_id: c.contact_user_id ?? c.user_id ?? c.id_user ?? c.contactId,
+    contact_phone: normalizePhone(c.contact_phone ?? c.phone),
+    contact_name: c.contact_name ?? c.name,
+  });
+
+  const normalizeBlocked = (c) => ({
+    ...c,
+    is_blocked: true,
+
+    // ВАЖНО: приводим поля blocked -> contact_*
+    contact_user_id: c.contact_user_id ?? c.blocked_user_id ?? c.blocked_id ?? c.user_id,
+    contact_phone: normalizePhone(
+      c.contact_phone ?? c.blocked_phone_number ?? c.blocked_phone ?? c.phone
+    ),
+    contact_name: c.contact_name ?? c.blocked_username ?? c.name,
+  });
+
+  const makeKey = (c) => {
+    const uid = c.contact_user_id;
+    if (uid !== undefined && uid !== null && String(uid).trim() !== '') return `uid:${uid}`;
+    if (c.contact_phone) return `phone:${c.contact_phone}`;
+    return `id:${c.id}`;
+  };
   
   useEffect(() => {
     loadUserData();
@@ -67,49 +102,109 @@ export default function ContactsScreen({ navigation, route }) {
   
   const loadContacts = async () => {
     if (!userId) return;
-    
+
     try {
       setLoading(true);
-      const response = await api.getContacts(userId);
-      
-      if (response.data.success) {
-        setContacts(response.data.data || []);
-      } else {
-        console.log('Failed to load contacts:', response.data.message);
-        setContacts([]);
-      }
-    } catch (error) {
-      console.error('Error loading contacts:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        response: error.response?.data,
-        status: error.response?.status,
-        headers: error.response?.headers,
-        config: error.config,
-        request: error.request
-      });
-      setContacts([]);
-    } finally {
-      setLoading(false);
+
+      const [regularResponse, blockedResponse] = await Promise.all([
+        api.getContacts(userId),
+        api.getBlockedContacts(userId),
+      ]);
+
+    const map = new Map();
+
+    // 1) regular
+    if (regularResponse?.data?.success) {
+      (regularResponse.data.data || [])
+        .map(normalizeRegular)
+        .forEach((c) => {
+          map.set(makeKey(c), c);
+        });
     }
-  };
+
+    // 2) blocked (приоритет!)
+    if (blockedResponse?.data?.success) {
+      const blockedList = (blockedResponse.data.data || []).map(normalizeBlocked);
+
+      blockedList.forEach((b) => {
+        const key = makeKey(b);
+        const existing = map.get(key);
+
+        map.set(key, {
+          ...(existing || {}),
+          ...b,
+          is_blocked: true, // гарантируем приоритет blocked
+        });
+      });
+
+      setBlockedContacts(new Set(blockedList.map((x) => x.contact_user_id).filter(Boolean)));
+    } else {
+      setBlockedContacts(new Set());
+    }
+
+    const merged = Array.from(map.values());
+    setContacts(merged);
+
+    if (searchQuery) applySearchFilter(searchQuery, merged);
+    else setFilteredContacts(merged);
+  } catch (e) {
+    console.error('Error loading contacts:', e);
+    setContacts([]);
+    setFilteredContacts([]);
+  } finally {
+    setLoading(false);
+  }
+};
+  
+
   
   const handleLongPressContact = (contact) => {
-    Alert.alert(
-      t('deleteContact'),
-      t('deleteContactConfirmation'),
-      [
-        {
-          text: t('cancel'),
-          style: 'cancel'
+    // Check if this contact is blocked
+    const isContactBlocked = contact.is_blocked || blockedContacts.has(contact.contact_user_id);
+    
+    const options = [
+      {
+        text: t('cancel'),
+        style: 'cancel'
+      },
+      {
+        text: isContactBlocked ? t('unblockContact') : t('blockContact'),
+        onPress: () => {
+          if (isContactBlocked) {
+            // Confirm unblocking
+            Alert.alert(
+              t('unblockContact'),
+              t('confirmUnblockContact'),
+              [
+                { text: t('cancel'), style: 'cancel' },
+                { text: t('unblock'), onPress: () => unblockContact(contact.id) }
+              ]
+            );
+          } else {
+            // Confirm blocking
+            Alert.alert(
+              t('blockContact'),
+              t('confirmBlockContact'),
+              [
+                { text: t('cancel'), style: 'cancel' },
+                { text: t('block'), onPress: () => blockContact(contact.id) }
+              ]
+            );
+          }
         },
-        {
-          text: t('delete'),
-          onPress: () => deleteContact(contact.id),
-          style: 'destructive'
-        }
-      ],
+        style: isContactBlocked ? 'default' : 'destructive'
+      },
+      {
+        text: t('delete'),
+        onPress: () => deleteContact(contact.id),
+        style: 'destructive'
+      }
+    ];
+    
+    Alert.alert(
+      t('contactOptions'),
+      t('selectContactAction'),
+      options,
       { cancelable: true }
     );
   };
@@ -125,6 +220,8 @@ export default function ContactsScreen({ navigation, route }) {
       if (response.data.success) {
         // Remove the contact from the list
         setContacts(prevContacts => prevContacts.filter(contact => contact.id !== contactId));
+        // Update filtered contacts as well
+        setFilteredContacts(prevContacts => prevContacts.filter(contact => contact.id !== contactId));
         console.log('Contact deleted successfully');
       } else {
         console.log('Failed to delete contact:', response.data.message);
@@ -134,6 +231,140 @@ export default function ContactsScreen({ navigation, route }) {
       console.log('Error deleting contact:', error);
       Alert.alert(t('error'), t('failedToDeleteContact'));
     }
+  };
+  
+  const blockContact = async (contactId) => {
+    if (!userId) return;
+    
+    try {
+      const contact = contacts.find(c => c.id === contactId);
+      if (!contact) return;
+      
+      const response = await api.blockContact({
+        user_id: userId,
+        blocked_user_id: contact.contact_user_id,
+        blocked_phone: contact.contact_phone
+      });
+      
+      if (response.data.success) {
+        // Update the contact to mark it as blocked
+        setContacts(prevContacts => 
+          prevContacts.map(c => 
+            c.id === contactId ? { ...c, is_blocked: true } : c
+          )
+        );
+        setFilteredContacts(prevContacts => 
+          prevContacts.map(c => 
+            c.id === contactId ? { ...c, is_blocked: true } : c
+          )
+        );
+        // Update blocked contacts set
+        setBlockedContacts(prev => new Set([...prev, contact.contact_user_id]));
+        console.log('Contact blocked successfully');
+        Alert.alert(t('success'), t('contactBlockedSuccessfully'));
+      } else {
+        console.log('Failed to block contact:', response.data.message);
+        Alert.alert(t('error'), response.data.message || t('failedToBlockContact'));
+      }
+    } catch (error) {
+      console.log('Error blocking contact:', error);
+      Alert.alert(t('error'), t('failedToBlockContact'));
+    }
+  };
+  
+  const unblockContact = async (contactId) => {
+    if (!userId) return;
+    
+    try {
+      const contact = contacts.find(c => c.id === contactId);
+      if (!contact) return;
+      
+      const response = await api.unblockContact({
+        user_id: userId,
+        blocked_user_id: contact.contact_user_id,
+        blocked_phone: contact.contact_phone
+      });
+      
+      if (response.data.success) {
+        // Update the contact to mark it as unblocked
+        setContacts(prevContacts => 
+          prevContacts.map(c => 
+            c.id === contactId ? { ...c, is_blocked: false } : c
+          )
+        );
+        setFilteredContacts(prevContacts => 
+          prevContacts.map(c => 
+            c.id === contactId ? { ...c, is_blocked: false } : c
+          )
+        );
+        // Update blocked contacts set
+        setBlockedContacts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(contact.contact_user_id);
+          return newSet;
+        });
+        console.log('Contact unblocked successfully');
+        Alert.alert(t('success'), t('contactUnblockedSuccessfully'));
+      } else {
+        console.log('Failed to unblock contact:', response.data.message);
+        Alert.alert(t('error'), response.data.message || t('failedToUnblockContact'));
+      }
+    } catch (error) {
+      console.log('Error unblocking contact:', error);
+      Alert.alert(t('error'), t('failedToUnblockContact'));
+    }
+  };
+  
+  const handleSearch = async (query) => {
+    setSearchQuery(query);
+    
+    if (query.trim() === '') {
+      // If search query is empty, show all contacts
+      setFilteredContacts(contacts);
+      setIsSearching(false);
+      return;
+    }
+    
+    setIsSearching(true);
+    
+    try {
+      const response = await api.searchContacts(userId, query);
+      
+      if (response.data.success) {
+        const list = (response.data.data || []).map((c) => {
+          // search может отдавать как regular-форму — нормализуем
+          const n = normalizeRegular(c);
+          return { ...n, is_blocked: blockedContacts.has(n.contact_user_id) || n.is_blocked };
+        });
+
+        // дедуп внутри поиска
+        const m = new Map();
+        list.forEach((c) => m.set(makeKey(c), c));
+        setFilteredContacts(Array.from(m.values()));
+      } else {
+        setFilteredContacts([]);
+      }
+    } catch (error) {
+      console.error('Error searching contacts:', error);
+      setFilteredContacts([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+  
+  const applySearchFilter = (query, contactsList) => {
+    if (!query.trim()) {
+      setFilteredContacts(contactsList);
+      return;
+    }
+    
+    const lowerQuery = query.toLowerCase();
+    const filtered = contactsList.filter(contact =>
+      (contact.contact_name || '').toLowerCase().includes(lowerQuery) ||
+      (contact.contact_phone || '').toLowerCase().includes(lowerQuery)
+    );
+    
+    setFilteredContacts(filtered);
   };
 
   const renderContactItem = ({ item }) => (
@@ -159,16 +390,18 @@ export default function ContactsScreen({ navigation, route }) {
       }}
       onLongPress={() => handleLongPressContact(item)}
     >
-      <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-        <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.contact_name.charAt(0)}</Text>
+      <View style={[styles.avatar, { backgroundColor: theme.primary }]}> 
+        <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.contact_name ? item.contact_name.charAt(0) : '?'}</Text>
       </View>
       <View style={styles.contactInfo}>
         <Text style={[styles.contactName, { color: theme.text }]}>{item.contact_name}</Text>
         <Text style={[styles.contactPhone, { color: theme.textSecondary }]}>{item.contact_phone}</Text>
       </View>
-      {item.is_favorite === 1 && (
+      {item.is_blocked ? (
+        <Icon name="lock" size={20} color="#FF6B6B" />
+      ) : item.is_favorite === 1 ? (
         <Icon name="star" size={20} color="#FFD700" />
-      )}
+      ) : null}
     </TouchableOpacity>
   );
 
@@ -177,11 +410,16 @@ export default function ContactsScreen({ navigation, route }) {
       <Header 
         title={t('contacts')} 
         showSearch={true} 
+        searchVisible={showSearch}
+        onSearchPress={setShowSearch}
+        searchValue={searchQuery}
+        onSearchChange={handleSearch}
+        onBack={() => navigation.goBack()}
       />
       
       <FlatList
-        data={contacts}
-        keyExtractor={(item) => item.id.toString()}
+        data={filteredContacts}
+        keyExtractor={(item) => makeKey(item)}
         renderItem={renderContactItem}
         contentContainerStyle={styles.contactList}
         onRefresh={loadContacts}
@@ -212,6 +450,20 @@ const styles = StyleSheet.create({
   },
   contactList: {
     paddingVertical: 8,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  searchInput: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    fontSize: 16,
   },
   contactItem: {
     flexDirection: 'row',

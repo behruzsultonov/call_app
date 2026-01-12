@@ -7,7 +7,8 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
-  AppState
+  AppState,
+  TextInput
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
@@ -21,9 +22,13 @@ export default function ChatsScreen({ navigation }) {
   const { theme } = useTheme();
   
   const [chats, setChats] = useState([]);
+  const [filteredChats, setFilteredChats] = useState([]);
   const [loading, setLoading] = useState(false);
   const [manualRefresh, setManualRefresh] = useState(false); // New state to track manual refresh
   const [userId, setUserId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const appState = useRef(AppState.currentState);
   
   useEffect(() => {
@@ -39,13 +44,13 @@ export default function ChatsScreen({ navigation }) {
   // Simplified polling implementation for real-time updates
   useEffect(() => {
     const loadChats = () => {
-      if (userId) {
+      if (userId && !searchQuery) {
         loadChatsData(false); // Pass false to indicate this is not a manual refresh
       }
     };
 
     const refreshChats = () => {
-      if (userId) {
+      if (userId && !searchQuery) {
         loadChatsData(false); // Pass false to indicate this is not a manual refresh
       }
     };
@@ -70,7 +75,7 @@ export default function ChatsScreen({ navigation }) {
       }
       clearInterval(intervalId);
     };
-  }, [userId]);
+  }, [userId, searchQuery]);
   
   const loadUserData = async () => {
     try {
@@ -117,13 +122,29 @@ export default function ChatsScreen({ navigation }) {
         });
         
         setChats(formattedChats);
+        
+        // Apply search filter only if there's an active search query (non-empty)
+        if (searchQuery && searchQuery.trim() !== '') {
+          applySearchFilter(searchQuery, formattedChats);
+        } else {
+          // When there's no search query, show all chats
+          setFilteredChats(formattedChats);
+        }
       } else {
         console.log('Failed to load chats:', response.data.message);
-        setChats([]);
+        // Only update the lists if we're not currently searching
+        if (!searchQuery || searchQuery.trim() === '') {
+          setChats([]);
+          setFilteredChats([]);
+        }
       }
     } catch (error) {
       console.error('Error loading chats:', error);
-      setChats([]);
+      // Only update the lists if we're not currently searching
+      if (!searchQuery || searchQuery.trim() === '') {
+        setChats([]);
+        setFilteredChats([]);
+      }
     } finally {
       // Only unset loading state for manual refreshes
       if (isManualRefresh) {
@@ -176,6 +197,69 @@ export default function ChatsScreen({ navigation }) {
     // In a real implementation, you would show a contact picker
     navigation.navigate('Contacts');
   };
+  
+  const handleSearch = async (query) => {
+    
+    if (query.trim() === '') {
+      // If search query is empty, clear the search and show all chats
+      setSearchQuery('');
+      setFilteredChats(chats);
+      setIsSearching(false);
+      return;
+    }
+    
+    setSearchQuery(query);
+    
+    setIsSearching(true);
+    
+    try {
+      const response = await api.searchChats(userId, query);
+      
+      if (response.data.success) {
+        // Transform search results to match the expected format
+        const formattedChats = (response.data.data || []).map(chat => {
+          return {
+            id: chat.id,
+            name: chat.chat_type === 'private' && chat.other_participant_name 
+              ? chat.other_participant_name 
+              : chat.chat_name,
+            message: chat.last_message || '',
+            time: chat.last_message_time ? 
+              new Date(chat.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+              '',
+            unread: chat.unread_count || 0,
+            isPrivate: chat.chat_type === 'private',
+            otherParticipantId: chat.other_participant_id
+          };
+        });
+        
+        setFilteredChats(formattedChats);
+      } else {
+        console.log('Failed to search chats:', response.data.message);
+        setFilteredChats([]);
+      }
+    } catch (error) {
+      console.error('Error searching chats:', error);
+      setFilteredChats([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+  
+  const applySearchFilter = (query, chatsList) => {
+    if (!query.trim()) {
+      setFilteredChats(chatsList);
+      return;
+    }
+    
+    const lowerQuery = query.toLowerCase();
+    const filtered = chatsList.filter(chat =>
+      (chat.name || '').toLowerCase().includes(lowerQuery) ||
+      (chat.message || '').toLowerCase().includes(lowerQuery)
+    );
+    
+    setFilteredChats(filtered);
+  };
 
   const renderChatItem = ({ item }) => (
     <TouchableOpacity 
@@ -198,7 +282,7 @@ export default function ChatsScreen({ navigation }) {
       onLongPress={() => handleLongPressChat(item)}
     >
       <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-        <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.name.charAt(0)}</Text>
+        <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.name ? item.name.charAt(0) : '?'}</Text>
       </View>
       <View style={styles.chatInfo}>
         <Text style={[styles.chatName, { color: theme.text }]}>{item.name}</Text>
@@ -265,10 +349,18 @@ export default function ChatsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <Header title={t('chats')} showSearch={true} />
+      <Header 
+        title={t('chats')} 
+        showSearch={true} 
+        searchVisible={showSearch}
+        onSearchPress={setShowSearch}
+        searchValue={searchQuery}
+        onSearchChange={handleSearch}
+        onBack={() => navigation.goBack()}
+      />
       
       <FlatList
-        data={chats}
+        data={filteredChats}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderChatItem}
         contentContainerStyle={styles.chatList}
@@ -300,6 +392,20 @@ const styles = StyleSheet.create({
   },
   chatList: {
     paddingVertical: 8,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  searchInput: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    fontSize: 16,
   },
   chatItem: {
     flexDirection: 'row',

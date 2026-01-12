@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal, Share } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Header from "../components/Header";
 import { useTranslation } from 'react-i18next';
@@ -44,6 +44,28 @@ export default function ProfileScreen({ navigation }) {
 
   const handleThemePress = () => {
     navigation.navigate('ThemeSelection');
+  };
+  
+  const inviteFriends = async () => {
+    try {
+      const result = await Share.share({
+        message: t('inviteFriendsMessage', `Join me on CallApp! Download the app to stay connected. Get it here: https://play.google.com/store/apps/details?id=com.callapp`),
+        title: t('inviteFriendsTitle', 'Invite to CallApp'),
+      });
+
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          console.log('Shared with activity type:', result.activityType);
+        } else {
+          console.log('Shared successfully');
+        }
+      } else if (result.action === Share.dismissedAction) {
+        console.log('Share dismissed');
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      Alert.alert(t('error'), t('failedToShare'));
+    }
   };
   
   const handleLogout = async () => {
@@ -178,7 +200,7 @@ export default function ProfileScreen({ navigation }) {
 
       {/* New Block: Invite Friends, Rate App, Privacy Policy */}
       <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
-        <MenuItem icon="person-add" color={theme.primary} label={t('inviteFriends')} theme={theme} />
+        <MenuItem icon="person-add" color={theme.primary} label={t('inviteFriends')} theme={theme} onPress={inviteFriends} />
         <MenuItem icon="star-border" color={theme.primary} label={t('rateApp')} theme={theme} />
         <MenuItem icon="description" color={theme.primary} label={t('privacyPolicy')} theme={theme} />
         <MenuItem icon="bug-report" color={theme.warning} label="Network Diagnostics" theme={theme} onPress={() => setShowDiagnostics(true)} />

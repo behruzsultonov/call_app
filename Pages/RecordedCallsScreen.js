@@ -477,12 +477,14 @@ const RecordedCallsScreen = ({ navigation }) => {
   // Show loading indicator if still loading
   if (loading && recordings.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, flex: 1, justifyContent: 'center' }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Header 
           title={t('recordedCalls')} 
-          onBackPress={() => navigation.goBack()}
+          onBack={() => navigation.goBack()}
         />
-        <ActivityIndicator size="large" color={theme.primary} />
+        <View style={styles.centeredContent}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
       </View>
     );
   }
@@ -491,7 +493,7 @@ const RecordedCallsScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Header 
         title={t('recordedCalls')} 
-        onBackPress={() => navigation.goBack()}
+        onBack={() => navigation.goBack()}
       />
       
       {recordings.length === 0 ? (
@@ -637,6 +639,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  centeredContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

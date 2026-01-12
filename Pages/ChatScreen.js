@@ -17,6 +17,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useWebRTC } from '../contexts/WebRTCContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import ChatHeader from '../components/ChatHeader';
+import Header from '../components/Header';
 import api from '../services/Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -35,6 +36,9 @@ export default function ChatScreen({ route, navigation }) {
   
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [manualRefresh, setManualRefresh] = useState(false); // New state to track manual refresh
   const [userId, setUserId] = useState(null);
   const [input, setInput] = useState('');
@@ -44,12 +48,18 @@ export default function ChatScreen({ route, navigation }) {
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
   const [fullscreenVideo, setFullscreenVideo] = useState(null);
   const textInputRef = useRef(null);
+  const listRef = useRef(null);
   const [recording, setRecording] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [playingAudioId, setPlayingAudioId] = useState(null); // Track currently playing audio message
   const [audioProgress, setAudioProgress] = useState({}); // Track progress of audio messages
   const appState = useRef(AppState.currentState);
+  
+  const [matchIds, setMatchIds] = useState([]);
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  
+  const activeMatchId = matchIds[activeMatchIndex];
   
   // Get chat data from navigation params
   const { chat } = route.params || {};
@@ -78,13 +88,13 @@ export default function ChatScreen({ route, navigation }) {
   // Simplified polling implementation for real-time updates
   useEffect(() => {
     const loadChat = () => {
-      if (chatId && userId) {
+      if (chatId && userId && !searchQuery) {
         loadMessages(false); // Pass false to indicate this is not a manual refresh
       }
     };
 
     const refreshChat = () => {
-      if (chatId && userId) {
+      if (chatId && userId && !searchQuery) {
         loadMessages(false); // Pass false to indicate this is not a manual refresh
       }
     };
@@ -107,7 +117,7 @@ export default function ChatScreen({ route, navigation }) {
       subscription.remove();
       clearInterval(intervalId);
     };
-  }, [chatId, userId]);
+  }, [chatId, userId, searchQuery]);
 
   // Add useEffect to clean up audio when component unmounts
   useEffect(() => {
@@ -189,11 +199,17 @@ export default function ChatScreen({ route, navigation }) {
         setMessages(formattedMessages);
       } else {
         console.log('Failed to load messages:', response.data.message);
-        setMessages([]);
+        // Only update the lists if we're not currently searching
+        if (!searchQuery || searchQuery.trim() === '') {
+          setMessages([]);
+        }
       }
     } catch (error) {
       console.log('Error loading messages:', error);
-      setMessages([]);
+      // Only update the lists if we're not currently searching
+      if (!searchQuery || searchQuery.trim() === '') {
+        setMessages([]);
+      }
     } finally {
       // Only unset loading state for manual refreshes
       if (isManualRefresh) {
@@ -207,6 +223,16 @@ export default function ChatScreen({ route, navigation }) {
     if (!input.trim() || !userId || !chatId) return;
     
     try {
+      // Check if this is a private chat and if there's a bidirectional block between users before sending message
+      if (isPrivateChat && otherParticipantId) {
+        const blockCheckResponse = await api.checkBlockedStatus(userId, otherParticipantId);
+        
+        if (blockCheckResponse.data.success && blockCheckResponse.data.data && blockCheckResponse.data.data.is_blocked) {
+          Alert.alert(t('blocked'), t('cannotSendMessageToBlockedUser'));
+          return;
+        }
+      }
+      
       // Create temporary message to show immediately
       const tempId = Date.now(); // Temporary ID
       const tempMessage = {
@@ -311,6 +337,16 @@ export default function ChatScreen({ route, navigation }) {
     if (!userId || !chatId) return;
 
     try {
+      // Check if this is a private chat and if there's a bidirectional block between users before sending image
+      if (isPrivateChat && otherParticipantId) {
+        const blockCheckResponse = await api.checkBlockedStatus(userId, otherParticipantId);
+        
+        if (blockCheckResponse.data.success && blockCheckResponse.data.data && blockCheckResponse.data.data.is_blocked) {
+          Alert.alert(t('blocked'), t('cannotSendMessageToBlockedUser'));
+          return;
+        }
+      }
+      
       // Create temporary message to show immediately
       const tempId = Date.now(); // Temporary ID
       const tempMessage = {
@@ -380,6 +416,16 @@ export default function ChatScreen({ route, navigation }) {
     if (!userId || !chatId) return;
 
     try {
+      // Check if this is a private chat and if there's a bidirectional block between users before sending video
+      if (isPrivateChat && otherParticipantId) {
+        const blockCheckResponse = await api.checkBlockedStatus(userId, otherParticipantId);
+        
+        if (blockCheckResponse.data.success && blockCheckResponse.data.data && blockCheckResponse.data.data.is_blocked) {
+          Alert.alert(t('blocked'), t('cannotSendMessageToBlockedUser'));
+          return;
+        }
+      }
+      
       // Create temporary message to show immediately
       const tempId = Date.now(); // Temporary ID
       const tempMessage = {
@@ -466,6 +512,19 @@ export default function ChatScreen({ route, navigation }) {
     try {
       console.log('Initiating call to user ID:', otherParticipantId);
       
+      // Check if there's a bidirectional block between users before making the call
+      const userDataString = await AsyncStorage.getItem('userData');
+      if (userDataString) {
+        const currentUser = JSON.parse(userDataString);
+        
+        const blockCheckResponse = await api.checkBlockedStatus(currentUser.id, otherParticipantId);
+        
+        if (blockCheckResponse.data.success && blockCheckResponse.data.data && blockCheckResponse.data.data.is_blocked) {
+          Alert.alert(t('blocked'), t('cannotCallBlockedUser'));
+          return;
+        }
+      }
+      
       // Get the phone number of the other participant for display purposes
       let phoneNumber = null;
       try {
@@ -498,7 +557,38 @@ export default function ChatScreen({ route, navigation }) {
 
 
 
+  const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const renderHighlightedText = (text, query, normalStyle, highlightStyle) => {
+    const q = (query || '').trim();
+    if (!q) return <Text style={normalStyle}>{text}</Text>;
+
+    const safeQ = escapeRegExp(q);
+    const regex = new RegExp(`(${safeQ})`, 'ig'); // ig = case-insensitive + global
+    const parts = String(text || '').split(regex);
+
+    // parts will be like: ["", "интер", "нет", "интер", "..."]
+
+    return (
+      <Text style={normalStyle}>
+        {parts.map((part, idx) => {
+          const isHit = part.toLowerCase() === q.toLowerCase();
+          return (
+            <Text key={idx} style={isHit ? highlightStyle : normalStyle}>
+              {part}
+            </Text>
+          );
+        })}
+      </Text>
+    );
+  };
+
   const renderMessage = ({ item, index }) => {
+    // Add search highlighting logic
+    const q = searchQuery.trim().toLowerCase();
+    const isMatch = q && (item.text || '').toLowerCase().includes(q);
+    const isActive = activeMatchId && String(item.id) === String(activeMatchId);
+    
     // Handle deleted messages
     if (item.isDeleted) {
       return (
@@ -729,10 +819,22 @@ export default function ChatScreen({ route, navigation }) {
                 borderWidth: 1,
                 borderColor: theme.border,
               }),
-            }
+            },
+            isMatch && { borderWidth: 1, borderColor: theme.primary },
+            isActive && { borderWidth: 2, borderColor: theme.primary },
           ]}
         >
-          <Text style={[styles.messageText, { color: item.isMe ? theme.buttonText : theme.text }]}>{item.text}</Text>
+          {renderHighlightedText(
+            item.text,
+            searchQuery,
+            [styles.messageText, { color: item.isMe ? theme.buttonText : theme.text }],
+            {
+              backgroundColor: item.isMe ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.12)',
+              color: item.isMe ? theme.buttonText : theme.text,
+              fontWeight: '700',
+              borderRadius: 4,
+            }
+          )}
           <View style={styles.messageInfo}>
             {item.isMe && (
               <View style={styles.statusContainer}>
@@ -843,6 +945,59 @@ export default function ChatScreen({ route, navigation }) {
       );
     }
   };
+  
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+
+    const q = query.trim().toLowerCase();
+
+    // очистка поиска
+    if (!q) {
+      setMatchIds([]);
+      setActiveMatchIndex(0);
+      return;
+    }
+
+    // находим все совпадения
+    const ids = messages
+      .filter(m => (m.text || '').toLowerCase().includes(q))
+      .map(m => m.id);
+
+    setMatchIds(ids);
+    setActiveMatchIndex(0);
+
+    // прыгаем к первому совпадению
+    if (ids.length > 0) {
+      setTimeout(() => scrollToMessageId(ids[0]), 50);
+    }
+  };
+  
+  const scrollToMessageId = (id) => {
+    const index = messages.findIndex(m => String(m.id) === String(id));
+    if (index < 0) return;
+
+    listRef.current?.scrollToIndex({
+      index,
+      animated: true,
+      viewPosition: 0.5, // будет примерно по центру экрана
+    });
+  };
+  
+  const goNextMatch = () => {
+    if (!matchIds.length) return;
+    const next = (activeMatchIndex + 1) % matchIds.length;
+    setActiveMatchIndex(next);
+    scrollToMessageId(matchIds[next]);
+  };
+  
+  const goPrevMatch = () => {
+    if (!matchIds.length) return;
+    const prev = (activeMatchIndex - 1 + matchIds.length) % matchIds.length;
+    setActiveMatchIndex(prev);
+    scrollToMessageId(matchIds[prev]);
+  };
+  
+
   
   const deleteMessage = async (messageId, deleteForEveryone = false) => {
     if (!userId) return;
@@ -984,6 +1139,16 @@ export default function ChatScreen({ route, navigation }) {
     if (!userId || !chatId) return;
 
     try {
+      // Check if this is a private chat and if there's a bidirectional block between users before sending voice message
+      if (isPrivateChat && otherParticipantId) {
+        const blockCheckResponse = await api.checkBlockedStatus(userId, otherParticipantId);
+        
+        if (blockCheckResponse.data.success && blockCheckResponse.data.data && blockCheckResponse.data.data.is_blocked) {
+          Alert.alert(t('blocked'), t('cannotSendMessageToBlockedUser'));
+          return;
+        }
+      }
+      
       // Create temporary message to show immediately
       const tempId = Date.now(); // Temporary ID
       const tempMessage = {
@@ -1105,29 +1270,47 @@ export default function ChatScreen({ route, navigation }) {
     }
   };  return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ChatHeader 
-        title={otherParticipantName || chatName}
-        onBackPress={() => navigation.goBack()} 
-        onCallPress={handleAudioCall}
-        onVideoCallPress={handleVideoCall}
-        onContactInfoPress={() => {
-          // Pass contact data when navigating to ContactInfo screen
-          if (isPrivateChat && otherParticipantId) {
-            navigation.navigate('ContactInfo', {
-              contact: {
-                name: otherParticipantName || chatName,
-                phone: '', // We would need to fetch this from the API
-                status: 'green',
-                id: otherParticipantId
-              }
-            });
-          } else {
-            navigation.navigate('ContactInfo');
+      {showSearch ? (
+        <Header 
+          title={otherParticipantName || chatName}
+          showSearch={true} 
+          searchVisible={showSearch}
+          onSearchPress={setShowSearch}
+          searchValue={searchQuery}
+          onSearchChange={handleSearch}
+          onBack={() => navigation.goBack()}
+        />
+      ) : (
+        <ChatHeader 
+          title={otherParticipantName || chatName}
+          onBackPress={() => navigation.goBack()} 
+          onCallPress={handleAudioCall}
+          onVideoCallPress={handleVideoCall}
+          rightButton={
+            <TouchableOpacity onPress={() => setShowSearch(true)}>
+              <Icon name="search" size={24} color={theme.primary} />
+            </TouchableOpacity>
           }
-        }}
-      />
+          onContactInfoPress={() => {
+            // Pass contact data when navigating to ContactInfo screen
+            if (isPrivateChat && otherParticipantId) {
+              navigation.navigate('ContactInfo', {
+                contact: {
+                  name: otherParticipantName || chatName,
+                  phone: '', // We would need to fetch this from the API
+                  status: 'green',
+                  id: otherParticipantId
+                }
+              });
+            } else {
+              navigation.navigate('ContactInfo');
+            }
+          }}
+        />
+      )}
       
       <FlatList
+        ref={listRef}
         data={messages}
         renderItem={({ item, index }) => renderMessage({ item, index })}
         keyExtractor={item => item.id.toString()}
@@ -1137,6 +1320,16 @@ export default function ChatScreen({ route, navigation }) {
         }
         onRefresh={() => loadMessages(true)} // Pass true to indicate manual refresh
         refreshing={manualRefresh} // Use manualRefresh instead of loading
+        onScrollToIndexFailed={(info) => {
+          // иногда RN не успевает отрендерить нужный индекс
+          setTimeout(() => {
+            listRef.current?.scrollToIndex({
+              index: info.index,
+              animated: true,
+              viewPosition: 0.5,
+            });
+          }, 250);
+        }}
       />
       
       {/* Image Viewer Modal */}
@@ -1330,6 +1523,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 1,
   },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  searchInput: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
 
   myMessage: {
     alignSelf: 'flex-end',
@@ -1512,25 +1719,3 @@ const styles = StyleSheet.create({
   },
 
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

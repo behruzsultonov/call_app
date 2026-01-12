@@ -59,6 +59,14 @@ switch ($action) {
         require_once __DIR__ . '/api/auth/test_sms.php';
         break;
         
+    case 'search':
+        require_once __DIR__ . '/api/search/search.php';
+        break;
+        
+    case 'calls':
+        require_once __DIR__ . '/api/calls/calls.php';
+        break;
+        
     case 'test':
         // Simple test endpoint
         header('Content-Type: application/json');

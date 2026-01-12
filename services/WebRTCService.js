@@ -19,7 +19,7 @@ import RecordingManager from './RecordingManager';
 registerGlobals();
 
 class WebRTCService {
-  constructor(userId = null) {
+  constructor(userId = null, api = null) {
     this.socket = null;
     this.peerConnection = null;
     this.localStream = null;
@@ -31,6 +31,11 @@ class WebRTCService {
     this.isVideoCall = false; // Track if this is a video or audio call, default to audio
     this.isAnsweringCall = false; // Add flag to prevent multiple answer attempts
     this.pendingICECandidates = []; // Queue for ICE candidates received before remote description
+    this.callStartTime = null; // Track call start time for duration calculation
+    this.callType = null; // Track call type (audio/video)
+    this.callStatus = null; // Track call status (ongoing, missed, rejected, completed)
+    this.api = api; // Store reference to API client
+    this.onCallSavedToHistory = null; // Callback for when a call is saved to history
 
     // Recording manager
     this.recordingManager = new RecordingManager(this);
@@ -123,6 +128,12 @@ class WebRTCService {
       console.log('Call type:', data.callType);
       // Set the caller as the current call target
       this.currentCallTarget = data.callerId;
+      
+      // For incoming calls, we need to track the possibility of a missed call
+      // The call tracking will be updated when the call is answered or rejected
+      this.callStartTime = new Date();
+      this.callStatus = 'incoming';
+      
       if (this.onIncomingCall) {
         this.onIncomingCall(data.callerId, data.callType, data.rtcMessage);
       }
@@ -144,6 +155,12 @@ class WebRTCService {
           setTimeout(() => {
             this.startSendToServer();
           }, 1000); // Small delay to ensure connection is established
+          
+          // Clear the missed call timeout since the call was answered
+          if (this.missedCallTimeout) {
+            clearTimeout(this.missedCallTimeout);
+            this.missedCallTimeout = null;
+          }
           
           if (this.onCallAnswered) {
             this.onCallAnswered();
@@ -188,11 +205,22 @@ class WebRTCService {
 
     this.socket.on('userLeft', (data) => {
       console.log('User left call:', data.userId);
+      // When user leaves the call, it's typically a completed call
+      if (this.callStatus === 'ongoing' && this.callStartTime) {
+        // Save as completed call
+        this.endCallTracking('completed');
+      }
       this.endCall();
     });
 
     this.socket.on('callRejected', (data) => {
       console.log('Call rejected by user:', data.userId);
+      // Update call status to rejected
+      if (this.callStatus === 'incoming' && this.callStartTime) {
+        // This is an incoming call that was rejected by the other party
+        // So for the caller, it's a 'rejected' status
+        this.endCallTracking('rejected');
+      }
       this.endCall();
     });
 
@@ -397,6 +425,8 @@ class WebRTCService {
 
   // Make a call to another user
   async makeCall(targetUserId, isVideoCall = false) {
+    // Start tracking the call
+    this.startCallTracking(isVideoCall ? 'video' : 'audio');
     try {
       this.isCaller = true;
       this.isVideoCall = isVideoCall; // Set whether this is a video or audio-only call
@@ -445,6 +475,24 @@ class WebRTCService {
       InCallManager.start({ media: 'audio' });
       InCallManager.setKeepScreenOn(true);
       InCallManager.setForceSpeakerphoneOn(false);
+      
+      // Set a timeout to handle missed calls if callee doesn't answer
+      this.missedCallTimeout = setTimeout(() => {
+        if (this.callStatus === 'ongoing' && !this.remoteStream) {
+          // Call wasn't answered, so it's a missed call
+          this.endCallTracking('missed');
+          this.endCall();
+        }
+      }, 30000); // 30 second timeout for unanswered calls
+      
+      // Set a timeout to handle missed calls if callee doesn't answer
+      this.missedCallTimeout = setTimeout(() => {
+        if (this.callStatus === 'ongoing' && !this.remoteStream) {
+          // Call wasn't answered, so it's a missed call
+          this.endCallTracking('missed');
+          this.endCall();
+        }
+      }, 30000); // 30 second timeout for unanswered calls
     } catch (error) {
       console.error('Error making call:', error);
       if (this.onConnectionError) {
@@ -467,6 +515,9 @@ class WebRTCService {
       this.isCaller = false;
       this.isVideoCall = isVideoCall; // Set whether this is a video or audio-only call
       this.currentCallTarget = callerId.toString(); // Ensure it's a string
+      
+      // For incoming calls that are answered, we update the call tracking
+      this.startCallTracking(isVideoCall ? 'video' : 'audio');
 
       // Stop ringing when answering the call
       InCallManager.stopRingtone();
@@ -542,6 +593,19 @@ class WebRTCService {
   // End the current call
   endCall() {
     console.log('Ending call');
+    
+    // Determine call status based on call state
+    let callStatus = 'completed';
+    if (this.callStatus === 'ongoing' && this.callStartTime) {
+      // Call was connected and then ended
+      callStatus = 'completed';
+    } else if (this.callStatus === 'ongoing' && !this.callStartTime) {
+      // Call wasn't properly started
+      callStatus = 'failed';
+    } else {
+      // Default to completed if no other status set
+      callStatus = 'completed';
+    }
 
     // Stop server recording if active
     if (this.isServerRecording) {
@@ -554,6 +618,17 @@ class WebRTCService {
       this.socket.emit('leaveCall', {
         userId: this.currentCallTarget,
       });
+    }
+    
+    // Clear missed call timeout if it exists
+    if (this.missedCallTimeout) {
+      clearTimeout(this.missedCallTimeout);
+      this.missedCallTimeout = null;
+    }
+    
+    // Save call to history before cleaning up
+    if (this.callStartTime || this.callStatus) {
+      this.endCallTracking(callStatus);
     }
 
     // Clean up local resources
@@ -586,7 +661,21 @@ class WebRTCService {
   // Reject an incoming call
   rejectCall() {
     console.log('Rejecting call from:', this.currentCallTarget);
+    
+    // Save call to history as rejected before cleaning up
+    if (this.callStartTime || this.callStatus) {
+      this.endCallTracking('rejected');
+    } else {
+      // If call wasn't started yet, it's a missed call for the recipient
+      this.endCallTracking('missed');
+    }
 
+    // Clear missed call timeout if it exists
+    if (this.missedCallTimeout) {
+      clearTimeout(this.missedCallTimeout);
+      this.missedCallTimeout = null;
+    }
+    
     // Notify the caller that the call was rejected
     if (this.currentCallTarget && this.socket) {
       this.socket.emit('rejectCall', {
@@ -1271,6 +1360,73 @@ class WebRTCService {
   // Check if caller
   getIsCaller() {
     return this.isCaller;
+  }
+  
+  // Save call to history
+  async saveCallToHistory(status) {
+    try {
+      // Calculate duration if call was ongoing
+      let duration = 0;
+      if (this.callStartTime) {
+        const endTime = new Date();
+        duration = Math.round((endTime - this.callStartTime) / 1000); // Duration in seconds
+      }
+      
+      // Determine call type for the database
+      const callType = this.isCaller ? 'outgoing' : 'incoming';
+      
+      // Prepare call data
+      const callData = {
+        caller_id: this.isCaller ? this.userId : this.currentCallTarget,
+        callee_id: this.isCaller ? this.currentCallTarget : this.userId,
+        call_type: callType,
+        call_status: status,
+        duration: duration
+      };
+      
+      // Use the stored API reference
+      const api = this.api;
+      
+      // Check if API is available
+      if (!api) {
+        console.error('API not available for saving call to history');
+        return;
+      }
+      
+      // Save the call to history
+      const response = await api.saveCall(callData);
+      
+      if (response.data.success) {
+        console.log('Call saved to history successfully');
+        // Trigger callback if available
+        if (this.onCallSavedToHistory) {
+          this.onCallSavedToHistory();
+        }
+      } else {
+        console.error('Failed to save call to history:', response.data.message);
+      }
+    } catch (error) {
+      console.error('Error saving call to history:', error);
+    }
+  }
+  
+  // Start tracking call
+  startCallTracking(type) {
+    this.callStartTime = new Date();
+    this.callType = type;
+    this.callStatus = 'ongoing';
+  }
+  
+  // End call tracking
+  endCallTracking(status) {
+    this.callStatus = status;
+    // Save call to history
+    this.saveCallToHistory(status);
+    
+    // Reset call tracking variables
+    this.callStartTime = null;
+    this.callType = null;
+    this.callStatus = null;
   }
 }
 

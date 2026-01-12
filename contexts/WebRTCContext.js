@@ -41,7 +41,31 @@ export const WebRTCProvider = ({ children }) => {
           console.error('Error getting user ID from AsyncStorage:', error);
         }
 
-        webRTCServiceRef.current = new WebRTCService(actualUserId);
+        webRTCServiceRef.current = new WebRTCService(actualUserId, api);
+        
+        // Set callback to notify when a call is saved to history
+        webRTCServiceRef.current.onCallSavedToHistory = () => {
+          // This will be used to trigger UI updates in components
+          if (window.callHistoryRefreshCallback) {
+            window.callHistoryRefreshCallback();
+          }
+        };
+        
+        // Set callback to notify when a call is saved to history
+        webRTCServiceRef.current.onCallSavedToHistory = () => {
+          // This will be used to trigger UI updates in components
+          if (window.callHistoryRefreshCallback) {
+            window.callHistoryRefreshCallback();
+          }
+        };
+        
+        // Set callback to notify when a call is saved to history
+        webRTCServiceRef.current.onCallSavedToHistory = () => {
+          // This will be used to trigger UI updates in components
+          if (window.callHistoryRefreshCallback) {
+            window.callHistoryRefreshCallback();
+          }
+        };
         
         // Get the user ID (either actual or generated)
         const id = webRTCServiceRef.current.getUserId();
@@ -289,6 +313,16 @@ export const WebRTCProvider = ({ children }) => {
       console.log('Remote stream after accepting call:', remote);
       setLocalStream(local);
       setRemoteStream(remote);
+      
+      // Set call status to ongoing since call was answered
+      if (webRTCServiceRef.current) {
+        webRTCServiceRef.current.callStatus = 'ongoing';
+      }
+      
+      // Set call status to ongoing since call was answered
+      if (webRTCServiceRef.current) {
+        webRTCServiceRef.current.callStatus = 'ongoing';
+      }
     } catch (error) {
       console.error('Error accepting call:', error);
       handleCallEnded();
@@ -426,6 +460,10 @@ export const WebRTCProvider = ({ children }) => {
     getUserId,
     getLocalStream,
     getRemoteStream,
+    // Method to set callback for call history refresh
+    setCallHistoryRefreshCallback: (callback) => {
+      window.callHistoryRefreshCallback = callback;
+    }
   };
 
   return (

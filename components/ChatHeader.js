@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-export default function ChatHeader({ title, onBackPress, onCallPress, onVideoCallPress, onContactInfoPress }) {
+export default function ChatHeader({ title, onBackPress, onCallPress, onVideoCallPress, onContactInfoPress, rightButton }) {
   return (
     <View style={styles.header}>
       
@@ -35,9 +35,11 @@ export default function ChatHeader({ title, onBackPress, onCallPress, onVideoCal
           <Icon name="call" size={24} color="#e88a17" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.iconBtn}>
-          <Icon name="more-vert" size={24} color="#e88a17" />
-        </TouchableOpacity>
+        {rightButton || (
+          <TouchableOpacity style={styles.iconBtn}>
+            <Icon name="more-vert" size={24} color="#e88a17" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );

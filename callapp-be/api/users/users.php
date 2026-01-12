@@ -54,6 +54,11 @@ function handleGetUsers() {
             return;
         }
         
+        if ($subaction === 'find_by_username') {
+            handleFindUserByUsername($pdo, $search);
+            return;
+        }
+        
         if ($userId) {
             // Get specific user
             $user = getUserById($pdo, $userId);
@@ -127,6 +132,28 @@ function handleFindUserByPhone($pdo, $phoneNumber) {
             $stmt->execute([$withPlus]);
             $user = $stmt->fetch();
         }
+        
+        if ($user) {
+            sendResponse(true, "User found", $user);
+        } else {
+            sendResponse(false, "User not found");
+        }
+    } catch (Exception $e) {
+        sendResponse(false, "Error searching for user: " . $e->getMessage());
+    }
+}
+
+function handleFindUserByUsername($pdo, $username) {
+    if (!$username) {
+        sendResponse(false, "Username is required");
+        return;
+    }
+    
+    try {
+        // Try exact match
+        $stmt = $pdo->prepare("SELECT id, username, phone_number FROM users WHERE username = ? LIMIT 1");
+        $stmt->execute([$username]);
+        $user = $stmt->fetch();
         
         if ($user) {
             sendResponse(true, "User found", $user);

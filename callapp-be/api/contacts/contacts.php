@@ -17,6 +17,10 @@ switch ($method) {
     case 'GET':
         if ($subaction === 'add_by_phone') {
             handleAddContactByPhone();
+        } elseif ($subaction === 'blocked') {
+            handleGetBlockedContacts();
+        } elseif ($subaction === 'check_blocked_status') {
+            handleCheckBlockedStatus();
         } else {
             handleGetContacts();
         }
@@ -31,7 +35,14 @@ switch ($method) {
         break;
         
     case 'DELETE':
-        handleDeleteContact();
+        $subaction = isset($_GET['subaction']) ? $_GET['subaction'] : '';
+        if ($subaction === 'block') {
+            handleBlockContact();
+        } elseif ($subaction === 'unblock') {
+            handleUnblockContact();
+        } else {
+            handleDeleteContact();
+        }
         break;
         
     default:
@@ -64,6 +75,35 @@ function handleGetContacts() {
         }
     } catch (Exception $e) {
         sendResponse(false, "Error retrieving contacts: " . $e->getMessage());
+    }
+}
+
+function handleGetBlockedContacts() {
+    global $pdo;
+    
+    // Authenticate request
+    $authenticatedUser = authenticateRequest($pdo);
+    if (!$authenticatedUser) {
+        sendResponse(false, "Authentication required");
+        return;
+    }
+    
+    // Get user ID from query parameters
+    $userId = isset($_GET['user_id']) ? (int)validateInput($_GET['user_id']) : null;
+    
+    try {
+        if ($userId) {
+            // Get blocked contacts for a specific user from the blocked_contacts table
+            $stmt = $pdo->prepare("SELECT bc.id, bc.user_id, bc.blocked_user_id, bc.blocked_phone, bc.blocked_at, u.username as blocked_username, u.phone_number as blocked_phone_number FROM blocked_contacts bc LEFT JOIN users u ON bc.blocked_user_id = u.id WHERE bc.user_id = ? ORDER BY bc.blocked_at DESC");
+            $stmt->execute([$userId]);
+            $blockedContacts = $stmt->fetchAll();
+            
+            sendResponse(true, "Blocked contacts retrieved successfully", $blockedContacts);
+        } else {
+            sendResponse(false, "User ID is required");
+        }
+    } catch (Exception $e) {
+        sendResponse(false, "Error retrieving blocked contacts: " . $e->getMessage());
     }
 }
 
@@ -241,6 +281,119 @@ function handleDeleteContact() {
         sendResponse(true, "Contact deleted successfully");
     } catch (Exception $e) {
         sendResponse(false, "Error deleting contact: " . $e->getMessage());
+    }
+}
+
+function handleBlockContact() {
+    global $pdo;
+    
+    // Authenticate request
+    $authenticatedUser = authenticateRequest($pdo);
+    if (!$authenticatedUser) {
+        sendResponse(false, "Authentication required");
+        return;
+    }
+    
+    // Get JSON input
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null;
+    $blockedUserId = isset($input['blocked_user_id']) ? (int)validateInput($input['blocked_user_id']) : null;
+    $blockedPhone = isset($input['blocked_phone']) ? validateInput($input['blocked_phone']) : null;
+    
+    if (!$userId || (!$blockedUserId && !$blockedPhone)) {
+        sendResponse(false, "User ID and either Blocked User ID or Blocked Phone are required");
+        return;
+    }
+    
+    try {
+        // Check if already blocked
+        $stmt = $pdo->prepare("SELECT id FROM blocked_contacts WHERE user_id = ? AND (blocked_user_id = ? OR blocked_phone = ?) LIMIT 1");
+        $stmt->execute([$userId, $blockedUserId, $blockedPhone]);
+        $existingBlock = $stmt->fetch();
+        
+        if ($existingBlock) {
+            sendResponse(false, "Contact is already blocked");
+            return;
+        }
+        
+        // Block the contact
+        $stmt = $pdo->prepare("INSERT INTO blocked_contacts (user_id, blocked_user_id, blocked_phone) VALUES (?, ?, ?)");
+        $stmt->execute([$userId, $blockedUserId, $blockedPhone]);
+        
+        sendResponse(true, "Contact blocked successfully");
+    } catch (Exception $e) {
+        sendResponse(false, "Error blocking contact: " . $e->getMessage());
+    }
+}
+
+function handleUnblockContact() {
+    global $pdo;
+    
+    // Authenticate request
+    $authenticatedUser = authenticateRequest($pdo);
+    if (!$authenticatedUser) {
+        sendResponse(false, "Authentication required");
+        return;
+    }
+    
+    // Get JSON input
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null;
+    $blockedUserId = isset($input['blocked_user_id']) ? (int)validateInput($input['blocked_user_id']) : null;
+    $blockedPhone = isset($input['blocked_phone']) ? validateInput($input['blocked_phone']) : null;
+    
+    if (!$userId || (!$blockedUserId && !$blockedPhone)) {
+        sendResponse(false, "User ID and either Blocked User ID or Blocked Phone are required");
+        return;
+    }
+    
+    try {
+        // Unblock the contact
+        $stmt = $pdo->prepare("DELETE FROM blocked_contacts WHERE user_id = ? AND (blocked_user_id = ? OR blocked_phone = ?)");
+        $stmt->execute([$userId, $blockedUserId, $blockedPhone]);
+        
+        if ($stmt->rowCount() > 0) {
+            sendResponse(true, "Contact unblocked successfully");
+        } else {
+            sendResponse(false, "Contact was not blocked or not found");
+        }
+    } catch (Exception $e) {
+        sendResponse(false, "Error unblocking contact: " . $e->getMessage());
+    }
+}
+
+function handleCheckBlockedStatus() {
+    global $pdo;
+    
+    // Authenticate request
+    $authenticatedUser = authenticateRequest($pdo);
+    if (!$authenticatedUser) {
+        sendResponse(false, "Authentication required");
+        return;
+    }
+    
+    $userId = isset($_GET['user_id']) ? (int)validateInput($_GET['user_id']) : null;
+    $otherUserId = isset($_GET['other_user_id']) ? (int)validateInput($_GET['other_user_id']) : null;
+    
+    if (!$userId || !$otherUserId) {
+        sendResponse(false, "User ID and Other User ID are required");
+        return;
+    }
+    
+    try {
+        // Check if there's a block in either direction (bidirectional block)
+        // Check if current user blocked other user OR other user blocked current user
+        $stmt = $pdo->prepare("SELECT id FROM blocked_contacts WHERE (user_id = ? AND blocked_user_id = ?) OR (user_id = ? AND blocked_user_id = ?) LIMIT 1");
+        $stmt->execute([$userId, $otherUserId, $otherUserId, $userId]);
+        $isBlocked = $stmt->fetch();
+        
+        sendResponse(true, "Blocked status retrieved successfully", [
+            'is_blocked' => $isBlocked !== false
+        ]);
+    } catch (Exception $e) {
+        sendResponse(false, "Error checking blocked status: " . $e->getMessage());
     }
 }
 ?>

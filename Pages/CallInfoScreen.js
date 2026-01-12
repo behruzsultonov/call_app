@@ -1,11 +1,82 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../contexts/ThemeContext';
+import api from '../services/Client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 
 export default function CallInfoScreen({ route, navigation }) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const { phoneNumber } = route.params || {};
+  const [callHistory, setCallHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    fetchCallHistory();
+  }, [phoneNumber]);
+  
+  const fetchCallHistory = async () => {
+    try {
+      setLoading(true);
+      
+      // Get the actual user ID
+      const userDataString = await AsyncStorage.getItem('userData');
+      if (!userDataString) {
+        console.error('User data not found');
+        setLoading(false);
+        return;
+      }
+      
+      const userData = JSON.parse(userDataString);
+      const actualUserId = userData.id;
+      
+      // First, try to find the contact by phone number
+      let userResponse = await api.getUserByPhoneNumber(phoneNumber);
+      let targetUser = null;
+      
+      if (userResponse.data.success && userResponse.data.data) {
+        targetUser = userResponse.data.data;
+      } else {
+        // If not found by phone number, try to find by username
+        userResponse = await api.getUserByUsername(phoneNumber);
+        if (userResponse.data.success && userResponse.data.data) {
+          targetUser = userResponse.data.data;
+        }
+      }
+      
+      if (!targetUser) {
+        console.error('User not found for phone number/username:', phoneNumber);
+        setLoading(false);
+        return;
+      }
+      
+      const targetUserId = targetUser.id;
+      
+      // Now get the call history for both users (to get calls between them)
+      const response = await api.getCallHistory(actualUserId);
+      
+      if (response.data.success) {
+        // Filter calls to only include calls with the specific contact
+        const filteredCalls = response.data.data.filter(call => 
+          call.number === phoneNumber || 
+          call.number === targetUser.phone_number ||
+          call.number === targetUser.username
+        );
+        
+        setCallHistory(filteredCalls);
+      } else {
+        console.error('Failed to fetch call history:', response.data.message);
+        setCallHistory([]);
+      }
+    } catch (error) {
+      console.error('Error fetching call history:', error);
+      setCallHistory([]);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -35,47 +106,65 @@ export default function CallInfoScreen({ route, navigation }) {
 
       {/* History */}
       <ScrollView style={{ marginTop: 10 }}>
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Сегодня</Text>
-
-        {/* 1 */}
-        <View style={[styles.item, { borderBottomColor: theme.border }]}>
-          <Icon name="north-east" size={20} color={theme.primary} />
-          <View style={styles.itemInfo}>
-            <Text style={[styles.time, { color: theme.text }]}>Сегодня 20:37</Text>
-            <View style={styles.row}>
-              <Icon name="call" size={16} color={theme.textSecondary} />
-              <Text style={[styles.duration, { color: theme.textSecondary }]}>00:21 Мин</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 2 */}
-        <View style={[styles.item, { borderBottomColor: theme.border }]}>
-          <Icon name="videocam" size={20} color="#E04A4A" />
-          <View style={styles.itemInfo}>
-            <Text style={[styles.time, { color: theme.text }]}>Сегодня 20:36</Text>
-            <View style={styles.row}>
-              <Icon name="videocam" size={14} color={theme.textSecondary} />
-              <Text style={[styles.duration, { color: theme.textSecondary }]}>00:00 Мин</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 3 */}
-        <View style={[styles.item, { borderBottomColor: theme.border }]}>
-          <Icon name="call-missed" size={20} color="#E04A4A" />
-          <View style={styles.itemInfo}>
-            <Text style={[styles.time, { color: theme.text }]}>Сегодня 20:36</Text>
-            <View style={styles.row}>
-              <Icon name="call" size={14} color={theme.textSecondary} />
-              <Text style={[styles.duration, { color: theme.textSecondary }]}>00:00 Мин</Text>
-            </View>
-          </View>
-        </View>
+        {loading ? (
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary, padding: 16 }]}>{t('loading')}...</Text>
+        ) : callHistory.length > 0 ? (
+          <>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary, paddingHorizontal: 16 }]}>{t('callHistory')}</Text>
+            {callHistory.map((call, index) => (
+              <View key={`${call.id}-${index}`} style={[styles.item, { borderBottomColor: theme.border }]}>  
+                <Icon 
+                  name={getStatusIconName(call.type)} 
+                  size={20} 
+                  color={getStatusIconColor(call.type)} 
+                />
+                <View style={styles.itemInfo}>
+                  <Text style={[styles.time, { color: theme.text }]}>{call.time}</Text>
+                  {call.duration ? (
+                    <View style={styles.row}>
+                      <Icon name="call" size={16} color={theme.textSecondary} />
+                      <Text style={[styles.duration, { color: theme.textSecondary }]}>{call.duration}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+          </>
+        ) : (
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary, padding: 16 }]}>{t('noCallHistory')}</Text>
+        )}
       </ScrollView>
     </View>
   );
 }
+
+// Helper function to get icon name based on call type
+function getStatusIconName(callType) {
+  switch (callType) {
+    case 'outgoing':
+      return 'call-made'; // Arrow pointing up-right for outgoing
+    case 'missed':
+      return 'call-missed';
+    case 'incoming':
+      return 'call-received'; // Arrow pointing down-left for incoming
+    default:
+      return 'call';
+  }
+}
+
+// Helper function to get icon color based on call type
+function getStatusIconColor(callType) {
+  switch (callType) {
+    case 'missed':
+      return '#E04A4A'; // Red for missed
+    case 'outgoing':
+      return '#4CAF50'; // Green for outgoing
+    case 'incoming':
+      return '#2196F3'; // Blue for incoming
+    default:
+      return '#777';
+  }
+};
 
 const styles = StyleSheet.create({
   container: {
