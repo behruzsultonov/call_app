@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
   Alert,
   AppState,
-  TextInput
+  TextInput,
+  BackHandler
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
@@ -16,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import api from '../services/Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function ChatsScreen({ navigation }) {
   const { t } = useTranslation();
@@ -40,6 +42,21 @@ export default function ChatsScreen({ navigation }) {
       loadChatsData();
     }
   }, [userId]);
+
+    useFocusEffect(
+    React.useCallback(() => {
+      const backAction = () => {
+        return true;
+      };
+
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        backAction,
+      );
+
+      return () => backHandler.remove();
+    }, []),
+  );
   
   // Simplified polling implementation for real-time updates
   useEffect(() => {

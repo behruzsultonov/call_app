@@ -480,16 +480,7 @@ class WebRTCService {
       this.missedCallTimeout = setTimeout(() => {
         if (this.callStatus === 'ongoing' && !this.remoteStream) {
           // Call wasn't answered, so it's a missed call
-          this.endCallTracking('missed');
-          this.endCall();
-        }
-      }, 30000); // 30 second timeout for unanswered calls
-      
-      // Set a timeout to handle missed calls if callee doesn't answer
-      this.missedCallTimeout = setTimeout(() => {
-        if (this.callStatus === 'ongoing' && !this.remoteStream) {
-          // Call wasn't answered, so it's a missed call
-          this.endCallTracking('missed');
+          // Only the caller should save the call history
           this.endCall();
         }
       }, 30000); // 30 second timeout for unanswered calls
@@ -626,8 +617,8 @@ class WebRTCService {
       this.missedCallTimeout = null;
     }
     
-    // Save call to history before cleaning up
-    if (this.callStartTime || this.callStatus) {
+    // Only save call to history if we're the caller
+    if ((this.callStartTime || this.callStatus) && this.isCaller) {
       this.endCallTracking(callStatus);
     }
 
@@ -662,14 +653,6 @@ class WebRTCService {
   rejectCall() {
     console.log('Rejecting call from:', this.currentCallTarget);
     
-    // Save call to history as rejected before cleaning up
-    if (this.callStartTime || this.callStatus) {
-      this.endCallTracking('rejected');
-    } else {
-      // If call wasn't started yet, it's a missed call for the recipient
-      this.endCallTracking('missed');
-    }
-
     // Clear missed call timeout if it exists
     if (this.missedCallTimeout) {
       clearTimeout(this.missedCallTimeout);
@@ -677,6 +660,7 @@ class WebRTCService {
     }
     
     // Notify the caller that the call was rejected
+    // The caller will save the call to history with the appropriate status
     if (this.currentCallTarget && this.socket) {
       this.socket.emit('rejectCall', {
         userId: this.currentCallTarget,
@@ -1372,13 +1356,19 @@ class WebRTCService {
         duration = Math.round((endTime - this.callStartTime) / 1000); // Duration in seconds
       }
       
+      // Only the caller should save the call to prevent duplicate entries
+      if (!this.isCaller) {
+        console.log('Callee skipping call save - caller will save it');
+        return;
+      }
+      
       // Determine call type for the database
-      const callType = this.isCaller ? 'outgoing' : 'incoming';
+      const callType = 'outgoing'; // Since we're only saving from caller's perspective
       
       // Prepare call data
       const callData = {
-        caller_id: this.isCaller ? this.userId : this.currentCallTarget,
-        callee_id: this.isCaller ? this.currentCallTarget : this.userId,
+        caller_id: this.userId,
+        callee_id: this.currentCallTarget,
         call_type: callType,
         call_status: status,
         duration: duration

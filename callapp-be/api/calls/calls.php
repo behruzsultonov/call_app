@@ -82,7 +82,11 @@ function getCallHistory() {
             FROM call_history ch
             LEFT JOIN users u1 ON (ch.caller_id = u1.id)
             LEFT JOIN users u2 ON (ch.callee_id = u2.id)
-            WHERE ch.caller_id = :user_id1 OR ch.callee_id = :user_id2
+            WHERE (ch.caller_id = :user_id1 OR ch.callee_id = :user_id2)
+            AND (
+                (ch.caller_id = :user_id3 AND ch.deleted_by_caller = 0) OR
+                (ch.callee_id = :user_id4 AND ch.deleted_by_callee = 0)
+            )
             ORDER BY ch.call_time DESC
             LIMIT 50
         ";
@@ -90,6 +94,8 @@ function getCallHistory() {
         $stmt = $pdo->prepare($sql);
         $stmt->bindParam(':user_id1', $user_id, PDO::PARAM_INT);
         $stmt->bindParam(':user_id2', $user_id, PDO::PARAM_INT);
+        $stmt->bindParam(':user_id3', $user_id, PDO::PARAM_INT);
+        $stmt->bindParam(':user_id4', $user_id, PDO::PARAM_INT);
         $stmt->execute();
         
         $calls = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -102,8 +108,11 @@ function getCallHistory() {
             $other_user_phone = $is_outgoing ? $call['callee_phone'] : $call['caller_phone'];
             
             // Determine call type for UI
-            $display_type = $call['call_type'];
-            if ($call['call_status'] === 'missed' && $display_type === 'incoming') {
+            // Since we only save calls from caller's perspective, we need to flip the type for callee
+            $display_type = $is_outgoing ? $call['call_type'] : ($call['call_type'] === 'outgoing' ? 'incoming' : 'outgoing');
+            
+            // Handle missed calls - they should appear as 'missed' for the callee
+            if ($call['call_status'] === 'missed' && !$is_outgoing) {
                 $display_type = 'missed';
             }
             
@@ -166,8 +175,8 @@ function saveCall() {
         }
         
         $sql = "
-            INSERT INTO call_history (caller_id, callee_id, call_type, call_status, duration)
-            VALUES (:caller_id, :callee_id, :call_type, :call_status, :duration)
+            INSERT INTO call_history (caller_id, callee_id, call_type, call_status, duration, deleted_by_caller, deleted_by_callee)
+            VALUES (:caller_id, :callee_id, :call_type, :call_status, :duration, 0, 0)
         ";
         
         $stmt = $pdo->prepare($sql);
@@ -197,6 +206,25 @@ function saveCall() {
     }
 }
 
+// Cleanup function to remove calls that have been deleted by both parties
+function cleanupDeletedCalls() {
+    global $pdo;
+    
+    try {
+        $sql = "DELETE FROM call_history WHERE deleted_by_caller = 1 AND deleted_by_callee = 1";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        
+        $deleted_count = $stmt->rowCount();
+        error_log("Cleaned up $deleted_count fully deleted calls");
+        
+        return $deleted_count;
+    } catch (Exception $e) {
+        error_log("Error cleaning up deleted calls: " . $e->getMessage());
+        return 0;
+    }
+}
+
 function deleteCall() {
     global $pdo;
     
@@ -223,25 +251,53 @@ function deleteCall() {
         }
         
         // Verify that the call belongs to the user (either caller or callee)
-        $sql = "SELECT id FROM call_history WHERE id = :call_id AND (caller_id = :user_id1 OR callee_id = :user_id2)";
+        // Also get the caller_id and callee_id to determine which flag to set
+        $sql = "SELECT id, caller_id, callee_id FROM call_history WHERE id = :call_id AND (caller_id = :user_id1 OR callee_id = :user_id2)";
         $stmt = $pdo->prepare($sql);
         $stmt->bindParam(':call_id', $call_id, PDO::PARAM_INT);
         $stmt->bindParam(':user_id1', $authenticated_user_id, PDO::PARAM_INT);
         $stmt->bindParam(':user_id2', $authenticated_user_id, PDO::PARAM_INT);
         $stmt->execute();
         
-        if (!$stmt->fetch()) {
+        $call_record = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$call_record) {
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'Permission denied: Call does not belong to user']);
             return;
         }
         
-        // Delete the call record
-        $delete_sql = "DELETE FROM call_history WHERE id = :call_id";
+        // Determine which deletion flag to set based on user role in the call
+        $is_caller = $call_record['caller_id'] == $authenticated_user_id;
+        
+        if ($is_caller) {
+            // Mark as deleted by caller
+            $delete_sql = "UPDATE call_history SET deleted_by_caller = 1 WHERE id = :call_id";
+        } else {
+            // Mark as deleted by callee
+            $delete_sql = "UPDATE call_history SET deleted_by_callee = 1 WHERE id = :call_id";
+        }
+        
         $delete_stmt = $pdo->prepare($delete_sql);
         $delete_stmt->bindParam(':call_id', $call_id, PDO::PARAM_INT);
         
         if ($delete_stmt->execute()) {
+            // Check if both users have deleted the call, then remove it completely
+            $check_sql = "SELECT deleted_by_caller, deleted_by_callee FROM call_history WHERE id = :call_id";
+            $check_stmt = $pdo->prepare($check_sql);
+            $check_stmt->bindParam(':call_id', $call_id, PDO::PARAM_INT);
+            $check_stmt->execute();
+            $result = $check_stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($result && $result['deleted_by_caller'] == 1 && $result['deleted_by_callee'] == 1) {
+                // Both users have deleted the call, so remove it completely
+                $fully_delete_sql = "DELETE FROM call_history WHERE id = :call_id";
+                $fully_delete_stmt = $pdo->prepare($fully_delete_sql);
+                $fully_delete_stmt->bindParam(':call_id', $call_id, PDO::PARAM_INT);
+                $fully_delete_stmt->execute();
+                
+                error_log("Call ID $call_id fully deleted by both users");
+            }
+            
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,

@@ -51,22 +51,6 @@ export const WebRTCProvider = ({ children }) => {
           }
         };
         
-        // Set callback to notify when a call is saved to history
-        webRTCServiceRef.current.onCallSavedToHistory = () => {
-          // This will be used to trigger UI updates in components
-          if (window.callHistoryRefreshCallback) {
-            window.callHistoryRefreshCallback();
-          }
-        };
-        
-        // Set callback to notify when a call is saved to history
-        webRTCServiceRef.current.onCallSavedToHistory = () => {
-          // This will be used to trigger UI updates in components
-          if (window.callHistoryRefreshCallback) {
-            window.callHistoryRefreshCallback();
-          }
-        };
-        
         // Get the user ID (either actual or generated)
         const id = webRTCServiceRef.current.getUserId();
         setUserId(id);
@@ -204,6 +188,21 @@ export const WebRTCProvider = ({ children }) => {
     
     // Stop ringing when call ends
     InCallManager.stopRingtone();
+    
+    // Trigger call history refresh to show the latest call
+    if (window.callHistoryRefreshCallback) {
+      console.log('Triggering call history refresh after call ended');
+      window.callHistoryRefreshCallback();
+    } else {
+      // If callback is not ready yet, try again after a short delay
+      console.log('Call history refresh callback not ready, scheduling retry');
+      setTimeout(() => {
+        if (window.callHistoryRefreshCallback) {
+          console.log('Triggering call history refresh after retry');
+          window.callHistoryRefreshCallback();
+        }
+      }, 500);
+    }
     
     // Reset to idle after a short delay
     setTimeout(() => {

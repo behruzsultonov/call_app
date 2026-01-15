@@ -414,7 +414,6 @@ export default function ContactsScreen({ navigation, route }) {
         onSearchPress={setShowSearch}
         searchValue={searchQuery}
         onSearchChange={handleSearch}
-        onBack={() => navigation.goBack()}
       />
       
       <FlatList
