@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import api from '../services/Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Header from '../components/Header';
 
 export default function ContactInfoScreen({ navigation }) {
   const route = useRoute();
@@ -170,17 +171,15 @@ export default function ContactInfoScreen({ navigation }) {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
-      
-      {/* Header with proper shadow */}
-      <View style={[styles.header, { backgroundColor: theme.cardBackground }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={26} color={theme.primary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={deleteContact}>
-          <Icon name="more-vert" size={26} color={theme.primary} />
-        </TouchableOpacity>
-      </View>
+      <Header
+        title={displayContact.name}
+        onBack={() => navigation.goBack()}
+        rightButton={
+          <TouchableOpacity onPress={deleteContact}>
+            <Icon name="more-vert" size={24} color={theme.primary} />
+          </TouchableOpacity>
+        }
+      />
 
       {/* Avatar + Info + Actions - Combined in one block */}
       <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
@@ -276,24 +275,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#f3eef5",
   },
 
-  header: {
-    height: 60,
-    backgroundColor: "#fff",
-    paddingHorizontal: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    // Add shadow for Android
-    elevation: 4,
-    // Add shadow for iOS
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-  },
 
   block: {
     backgroundColor: "#fff",

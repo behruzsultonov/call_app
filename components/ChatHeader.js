@@ -1,18 +1,27 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function ChatHeader({ title, onBackPress, onCallPress, onVideoCallPress, onContactInfoPress, rightButton }) {
+export default function ChatHeader({
+  title,
+  onBackPress,
+  onCallPress,
+  onVideoCallPress,
+  onContactInfoPress,
+  rightButton,
+}) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.header}>
-      
+    <View style={[styles.header, { paddingTop: insets.top, height: insets.top + 64 }]}>
       {/* Back button */}
-      <TouchableOpacity style={styles.backBtn} onPress={onBackPress}>
+      <TouchableOpacity style={styles.backBtn} onPress={onBackPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <Icon name="arrow-back" size={26} color="#e88a17" />
       </TouchableOpacity>
 
       {/* Avatar + Name + Status */}
-      <TouchableOpacity style={styles.centerBlock} onPress={onContactInfoPress}>
+      <TouchableOpacity style={styles.centerBlock} onPress={onContactInfoPress} activeOpacity={0.8}>
         <View style={styles.avatar}>
           <Icon name="person" size={32} color="#fff" />
         </View>
@@ -27,16 +36,16 @@ export default function ChatHeader({ title, onBackPress, onCallPress, onVideoCal
 
       {/* Right icons */}
       <View style={styles.rightIcons}>
-        <TouchableOpacity style={styles.iconBtn} onPress={onVideoCallPress}>
+        <TouchableOpacity style={styles.iconBtn} onPress={onVideoCallPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Icon name="videocam" size={24} color="#e88a17" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.iconBtn} onPress={onCallPress}>
+        <TouchableOpacity style={styles.iconBtn} onPress={onCallPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Icon name="call" size={24} color="#e88a17" />
         </TouchableOpacity>
 
         {rightButton || (
-          <TouchableOpacity style={styles.iconBtn}>
+          <TouchableOpacity style={styles.iconBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Icon name="more-vert" size={24} color="#e88a17" />
           </TouchableOpacity>
         )}
@@ -47,7 +56,6 @@ export default function ChatHeader({ title, onBackPress, onCallPress, onVideoCal
 
 const styles = StyleSheet.create({
   header: {
-    height: 64,
     backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
@@ -99,5 +107,6 @@ const styles = StyleSheet.create({
 
   iconBtn: {
     paddingHorizontal: 8,
+    paddingVertical: 6,
   },
 });

@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, SafeAreaView } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Header = ({ title, showSearch = false, onSearchPress, onBack, searchVisible = false, onSearchChange = null, searchValue = '' }) => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   
   if (searchVisible) {
     return (
       <View style={[styles.container, { 
         backgroundColor: theme.headerBackground,
         borderBottomColor: theme.border,
-        shadowColor: theme.text
+        shadowColor: theme.text,
+        paddingTop: insets.top
       }]}>        
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Icon name="arrow-back" size={24} color={theme.primary} />
@@ -40,7 +43,8 @@ const Header = ({ title, showSearch = false, onSearchPress, onBack, searchVisibl
     <View style={[styles.container, { 
       backgroundColor: theme.headerBackground,
       borderBottomColor: theme.border,
-      shadowColor: theme.text
+      shadowColor: theme.text,
+      paddingTop: insets.top
     }]}>
       {onBack ? (
         <TouchableOpacity onPress={onBack} style={styles.backButton}>

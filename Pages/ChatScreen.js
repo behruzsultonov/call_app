@@ -10,7 +10,11 @@ import {
   Image,
   TouchableWithoutFeedback,
   Modal,
-  AppState
+  AppState,
+  KeyboardAvoidingView,
+  SafeAreaView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
@@ -25,7 +29,7 @@ import { Picker } from 'emoji-mart-native';
 import ImageView from 'react-native-image-viewing';
 import Video from 'react-native-video';
 import RNFS from 'react-native-fs';
-import { PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid } from 'react-native';
 import Sound from 'react-native-nitro-sound';
 import AudioWaveform from '../components/AudioWaveform';
 
@@ -894,6 +898,7 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   const handleEmojiPress = () => {
+    Keyboard.dismiss();
     setShowEmojiPicker(!showEmojiPicker);
   };
   
@@ -1269,7 +1274,7 @@ export default function ChatScreen({ route, navigation }) {
       setPlayingAudioId(null);
     }
   };  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {showSearch ? (
         <Header 
           title={otherParticipantName || chatName}
@@ -1309,28 +1314,40 @@ export default function ChatScreen({ route, navigation }) {
         />
       )}
       
-      <FlatList
-        ref={listRef}
-        data={messages}
-        renderItem={({ item, index }) => renderMessage({ item, index })}
-        keyExtractor={item => item.id.toString()}
-        contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 10, flexGrow: 1, justifyContent: 'flex-end' }}
-        ListHeaderComponent={
-          <Text style={[styles.centerDate, { color: theme.text, marginBottom: 10 }]}>{t('today')}</Text>
-        }
-        onRefresh={() => loadMessages(true)} // Pass true to indicate manual refresh
-        refreshing={manualRefresh} // Use manualRefresh instead of loading
-        onScrollToIndexFailed={(info) => {
-          // иногда RN не успевает отрендерить нужный индекс
-          setTimeout(() => {
-            listRef.current?.scrollToIndex({
-              index: info.index,
-              animated: true,
-              viewPosition: 0.5,
-            });
-          }, 250);
-        }}
-      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        // если у тебя высокий хедер — увеличь (80-120)
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <FlatList
+          ref={listRef}
+          data={messages}
+          renderItem={({ item, index }) => renderMessage({ item, index })}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={{
+            paddingVertical: 10,
+            paddingHorizontal: 10,
+            flexGrow: 1,
+            justifyContent: 'flex-end',
+          }}
+          ListHeaderComponent={
+            <Text style={[styles.centerDate, { color: theme.text, marginBottom: 10 }]}> {t('today')} </Text>
+          }
+          onRefresh={() => loadMessages(true)}
+          refreshing={manualRefresh}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onScrollToIndexFailed={(info) => {
+            setTimeout(() => {
+              listRef.current?.scrollToIndex({
+                index: info.index,
+                animated: true,
+                viewPosition: 0.5,
+              });
+            }, 250);
+          }}
+        />
       
       {/* Image Viewer Modal */}
       <ImageView
@@ -1494,7 +1511,45 @@ export default function ChatScreen({ route, navigation }) {
             )}
           </TouchableOpacity>        </View>
       </View>
-    </View>
+      </KeyboardAvoidingView>
+
+      {/* модалки лучше держать снаружи KAV */}
+      <ImageView
+        images={getImageUrls()}
+        imageIndex={imageViewerIndex}
+        visible={visibleImageViewer}
+        onRequestClose={() => setVisibleImageViewer(false)}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+      />
+
+      <Modal
+        visible={!!fullscreenVideo}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => setFullscreenVideo(null)}
+      >
+        <View style={styles.fullscreenVideoContainer}>
+          {fullscreenVideo && (
+            <>
+              <Video
+                source={{ uri: fullscreenVideo.videoUrl }}
+                style={styles.fullscreenVideo}
+                controls={true}
+                resizeMode="contain"
+                onError={(error) => console.log('Video playback error:', error)}
+                onEnd={() => setFullscreenVideo(null)}
+                paused={false}
+                repeat={true}
+              />
+              <TouchableOpacity style={styles.closeFullscreenButton} onPress={() => setFullscreenVideo(null)}>
+                <Icon name="close" size={30} color="#ffffff" />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
