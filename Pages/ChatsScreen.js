@@ -9,7 +9,8 @@ import {
   Alert,
   AppState,
   TextInput,
-  BackHandler
+  BackHandler,
+  Animated
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../components/Header';
@@ -31,6 +32,9 @@ export default function ChatsScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showFabMenu, setShowFabMenu] = useState(false);
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const appState = useRef(AppState.currentState);
   
   useEffect(() => {
@@ -94,6 +98,23 @@ export default function ChatsScreen({ navigation }) {
     };
   }, [userId, searchQuery]);
   
+  useEffect(() => {
+    // Animate FAB menu when it opens/closes
+    Animated.parallel([
+      Animated.timing(rotateAnim, {
+        toValue: showFabMenu ? 1 : 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: showFabMenu ? 1.1 : 1,
+        friction: 5,
+        tension: 100,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, [showFabMenu]);
+
   const loadUserData = async () => {
     try {
       const userDataString = await AsyncStorage.getItem('userData');
@@ -134,7 +155,8 @@ export default function ChatsScreen({ navigation }) {
               '',
             unread: chat.unread_count || 0,
             isPrivate: chat.chat_type === 'private',
-            otherParticipantId: chat.other_participant_id
+            otherParticipantId: chat.other_participant_id,
+            memberCount: chat.member_count || 0  // Add member count for group chats
           };
         });
         
@@ -197,7 +219,8 @@ export default function ChatsScreen({ navigation }) {
               ? createdChat.other_participant_name 
               : createdChat.chat_name,
             isPrivate: createdChat.chat_type === 'private',
-            otherParticipantId: createdChat.other_participant_id
+            otherParticipantId: createdChat.other_participant_id,
+            memberCount: createdChat.member_count || (createdChat.chat_type === 'private' ? 2 : 0)
           }
         });
       } else {
@@ -213,6 +236,17 @@ export default function ChatsScreen({ navigation }) {
     // For now, we'll navigate to contacts screen to select a contact
     // In a real implementation, you would show a contact picker
     navigation.navigate('Contacts');
+    setShowFabMenu(false);
+  };
+  
+  const handleCreateGroup = () => {
+    // Navigate to the AddGroup screen to create a group
+    navigation.navigate('AddGroup');
+    setShowFabMenu(false);
+  };
+  
+  const toggleFabMenu = () => {
+    setShowFabMenu(!showFabMenu);
   };
   
   const handleSearch = async (query) => {
@@ -246,7 +280,8 @@ export default function ChatsScreen({ navigation }) {
               '',
             unread: chat.unread_count || 0,
             isPrivate: chat.chat_type === 'private',
-            otherParticipantId: chat.other_participant_id
+            otherParticipantId: chat.other_participant_id,
+            memberCount: chat.member_count || 0  // Add member count for group chats
           };
         });
         
@@ -278,6 +313,46 @@ export default function ChatsScreen({ navigation }) {
     setFilteredChats(filtered);
   };
 
+  const FabMenu = () => {
+    const rotateInterpolate = rotateAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: ['0deg', '45deg']
+    });
+
+    return (
+      <View style={styles.fabContainer}>
+        {/* Menu items appear above the main FAB */}
+        {showFabMenu && (
+          <View style={styles.fabMenu}>
+            <TouchableOpacity 
+              style={[styles.fabMenuItem, { backgroundColor: theme.primary }]}
+              onPress={handleCreateGroup}
+            >
+              <Icon name="group" size={20} color={theme.buttonText} />
+            </TouchableOpacity>
+            <View style={styles.menuSpacing} />
+            <TouchableOpacity 
+              style={[styles.fabMenuItem, { backgroundColor: theme.primary }]}
+              onPress={handleCreateChat}
+            >
+              <Icon name="chat" size={20} color={theme.buttonText} />
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {/* Main FAB with animated rotation */}
+        <Animated.View style={{ transform: [{ rotate: rotateInterpolate }, { scale: scaleAnim }] }}>
+          <TouchableOpacity 
+            style={[styles.fab, { backgroundColor: theme.primary }]}
+            onPress={toggleFabMenu}
+          >
+            <Icon name="add" size={24} color={theme.buttonText} />
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    );
+  };
+
   const renderChatItem = ({ item }) => (
     <TouchableOpacity 
       style={[
@@ -293,7 +368,8 @@ export default function ChatsScreen({ navigation }) {
           name: item.name,
           // Pass additional data for private chats
           isPrivate: item.isPrivate,
-          otherParticipantId: item.otherParticipantId
+          otherParticipantId: item.otherParticipantId,
+          memberCount: item.memberCount || 0  // Pass member count for group chats
         }
       })}
       onLongPress={() => handleLongPressChat(item)}
@@ -392,12 +468,7 @@ export default function ChatsScreen({ navigation }) {
         }
       />
       
-      <TouchableOpacity 
-        style={[styles.fab, { backgroundColor: theme.primary }]}
-        onPress={handleCreateChat}
-      >
-        <Icon name="chat" size={24} color={theme.buttonText} />
-      </TouchableOpacity>
+      <FabMenu />
     </SafeAreaView>
   );
 }
@@ -479,10 +550,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  fab: {
+  fabContainer: {
     position: 'absolute',
     bottom: 20,
     right: 20,
+  },
+  fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -490,6 +563,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  fabMenu: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  fabMenuItem: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  menuSpacing: {
+    height: 10,
   },
   emptyContainer: {
     flex: 1,

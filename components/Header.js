@@ -4,7 +4,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const Header = ({ title, showSearch = false, onSearchPress, onBack, searchVisible = false, onSearchChange = null, searchValue = '' }) => {
+const Header = ({ title, showSearch = false, onSearchPress, onBack, searchVisible = false, onSearchChange = null, searchValue = '', rightButton = null }) => {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   
@@ -54,7 +54,9 @@ const Header = ({ title, showSearch = false, onSearchPress, onBack, searchVisibl
         <View style={styles.placeholder} />
       )}
       <Text style={[styles.title, { color: theme.primary }]}>{title}</Text>
-      {showSearch ? (
+      {rightButton ? (
+        rightButton
+      ) : showSearch ? (
         <TouchableOpacity onPress={() => onSearchPress && onSearchPress(true)}>
           <Icon name="search" size={24} color={theme.primary} />
         </TouchableOpacity>

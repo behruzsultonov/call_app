@@ -1,4 +1,10 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/php-errors.log');
 // Chats API endpoints
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../lib/utils.php';
@@ -7,6 +13,7 @@ require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
 // Check if database connection is available
 if (!$pdo) {
     sendResponse(false, "Database connection failed. Please check server configuration.");
+    exit;
 }
 
 // Get the request method
@@ -18,6 +25,8 @@ $subaction = isset($_GET['subaction']) ? $_GET['subaction'] : '';
 
 if ($action === 'chats' && $subaction === 'check_private') {
     handleCheckPrivateChat();
+} elseif ($action === 'chats' && $subaction === 'add_participant') {
+    handleAddParticipant();
 } else {
     switch ($method) {
         case 'GET':
@@ -51,6 +60,7 @@ function handleGetChats() {
     error_log("Authentication result: " . ($user ? 'success' : 'failed'));
     if (!$user) {
         sendResponse(false, "Authentication required");
+        exit;
     }
     
     $userId = $user['id'];
@@ -145,8 +155,8 @@ function handleGetChats() {
             
             // For private chats, get the other participant's name
             if ($chat['chat_type'] === 'private') {
-                $participantStmt = $pdo->prepare("
-                    SELECT u.username, u.id
+                $participantStmt = $pdo->prepare(
+                    "SELECT u.username, u.id
                     FROM chat_participants cp
                     JOIN users u ON cp.user_id = u.id
                     WHERE cp.chat_id = ? AND cp.user_id != ?
@@ -154,31 +164,51 @@ function handleGetChats() {
                 ");
                 $participantStmt->execute([$chat['id'], $userId]);
                 $participant = $participantStmt->fetch();
-                
+                            
                 if ($participant) {
                     $chat['other_participant_id'] = $participant['id'];
-                    
+                                
                     // Check if there's a contact name for this user
-                    $contactStmt = $pdo->prepare("
-                        SELECT contact_name
+                    $contactStmt = $pdo->prepare(
+                        "SELECT contact_name
                         FROM contacts
                         WHERE user_id = ? AND contact_user_id = ?
                         LIMIT 1
                     ");
                     $contactStmt->execute([$userId, $participant['id']]);
                     $contact = $contactStmt->fetch();
-                    
+                                
                     // Use contact name if available, otherwise use username
                     $chat['other_participant_name'] = $contact ? $contact['contact_name'] : $participant['username'];
                 }
+            } else if ($chat['chat_type'] === 'group') {
+                // For group chats, get all participants
+                $participantsStmt = $pdo->prepare(
+                    "SELECT 
+                        u.id,
+                        u.username,
+                        cp.is_admin,
+                        cp.joined_at,
+                        cp.left_at
+                    FROM chat_participants cp
+                    JOIN users u ON cp.user_id = u.id
+                    WHERE cp.chat_id = ?
+                    ORDER BY cp.joined_at ASC"
+                );
+                $participantsStmt->execute([$chat['id']]);
+                $participants = $participantsStmt->fetchAll();
+                            
+                $chat['participants'] = $participants;
+                $chat['member_count'] = count($participants);
             }
         }
         
         sendResponse(true, "Chats retrieved successfully", $chats);
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         // Log the actual error for debugging
         error_log("Error retrieving chats: " . $e->getMessage());
         sendResponse(false, "Error retrieving chats: " . $e->getMessage());
+        exit;
     }
 }
 
@@ -192,6 +222,7 @@ function handleCheckPrivateChat() {
     error_log("Authentication result: " . ($user ? 'success' : 'failed'));
     if (!$user) {
         sendResponse(false, "Authentication required");
+        exit;
     }
     
     $userId = $user['id'];
@@ -201,6 +232,7 @@ function handleCheckPrivateChat() {
     
     if (!$otherUserId) {
         sendResponse(false, "Other user ID is required");
+        exit;
     }
     
     try {
@@ -212,9 +244,10 @@ function handleCheckPrivateChat() {
         } else {
             sendResponse(false, "No existing chat found");
         }
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         error_log("Error checking for existing private chat: " . $e->getMessage());
         sendResponse(false, "Error checking for existing chat: " . $e->getMessage());
+        exit;
     }
 }
 
@@ -252,9 +285,78 @@ function getPrivateChatBetweenUsers($pdo, $user1Id, $user2Id) {
         $chat = $stmt->fetch();
         
         return $chat;
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         error_log("Error checking for existing private chat: " . $e->getMessage());
         return null;
+    }
+}
+
+function handleAddParticipant() {
+    global $pdo;
+    
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+        exit;
+    }
+    
+    // Get JSON input
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $chatId = isset($input['chat_id']) ? (int)validateInput($input['chat_id']) : null;
+    $userId = isset($input['user_id']) ? (int)validateInput($input['user_id']) : null; // This refers to the 'id' field in the users table
+    $participantId = isset($input['participant_id']) ? (int)validateInput($input['participant_id']) : null;
+    
+    // Verify that the authenticated user is the same as the user in the request
+    if ($user['id'] != $userId) {
+        sendResponse(false, "User ID mismatch");
+        exit;
+    }
+    
+    if (!$chatId || !$userId || !$participantId) {
+        sendResponse(false, "Chat ID, User ID, and Participant ID are required");
+        exit;
+    }
+    
+    try {
+        // Check if user is admin of the chat
+        if (!isUserAdmin($pdo, $userId, $chatId)) {
+            sendResponse(false, "User is not authorized to add participants to this chat");
+            exit;
+        }
+            
+        // Check if the participant already exists in the chat
+        $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM chat_participants WHERE chat_id = ? AND user_id = ?");
+        $checkStmt->execute([$chatId, $participantId]);
+        $exists = $checkStmt->fetchColumn();
+            
+        if ($exists > 0) {
+            sendResponse(false, "Participant is already in this chat");
+            exit;
+        }
+            
+        // Validate that the participant user exists
+        $userCheckStmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+        $userCheckStmt->execute([$participantId]);
+        $participantExists = $userCheckStmt->fetch();
+            
+        if (!$participantExists) {
+            sendResponse(false, "Invalid participant ID: User does not exist");
+            exit;
+        }
+        
+        // Add participant to chat
+        $stmt = $pdo->prepare(
+            "INSERT INTO chat_participants (chat_id, user_id, is_admin, joined_at) 
+             VALUES (?, ?, 0, NOW())"
+        );
+        $stmt->execute([$chatId, $participantId]);
+        
+        sendResponse(true, "Participant added successfully");
+    } catch (Throwable $e) {
+        sendResponse(false, "Error adding participant: " . $e->getMessage());
+        exit;
     }
 }
 
@@ -265,6 +367,7 @@ function handleCreateChat() {
     $user = authenticateRequest($pdo);
     if (!$user) {
         sendResponse(false, "Authentication required");
+        exit;
     }
     
     // Get JSON input
@@ -278,10 +381,12 @@ function handleCreateChat() {
     // Verify that the authenticated user is the same as the creator
     if ($user['id'] != $createdBy) {
         sendResponse(false, "User ID mismatch");
+        exit;
     }
     
     if (!$chatName || !$createdBy) {
         sendResponse(false, "Chat Name and Created By are required");
+        exit;
     }
     
     try {
@@ -314,8 +419,7 @@ function handleCreateChat() {
                 $userExists = $userCheckStmt->fetch();
                 
                 if (!$userExists) {
-                    $pdo->rollback();
-                    sendResponse(false, "Invalid participant ID: User does not exist");
+                    throw new Exception("Invalid participant ID: User does not exist");
                 }
                 
                 $stmt = $pdo->prepare("
@@ -329,43 +433,46 @@ function handleCreateChat() {
         // Commit transaction
         $pdo->commit();
         
-        // Get the created chat with participant information
-        $chat = getChatById($pdo, $chatId);
+        // Get the created chat
+        $stmt = $pdo->prepare(
+            "SELECT 
+                c.id,
+                c.chat_name,
+                c.chat_type,
+                c.created_by,
+                c.created_at,
+                c.updated_at,
+                c.is_deleted_for_everyone
+            FROM chats c
+            WHERE c.id = ?"
+        );
+        $stmt->execute([$chatId]);
+        $chat = $stmt->fetch();
         
-        // For private chats, get the other participant's name
-        if ($chat && $chat['chat_type'] === 'private') {
-            $participantStmt = $pdo->prepare("
-                SELECT u.username, u.id
-                FROM chat_participants cp
-                JOIN users u ON cp.user_id = u.id
-                WHERE cp.chat_id = ? AND cp.user_id != ?
-                LIMIT 1
-            ");
-            $participantStmt->execute([$chatId, $createdBy]);
-            $participant = $participantStmt->fetch();
-            
-            if ($participant) {
-                $chat['other_participant_id'] = $participant['id'];
-                
-                // Check if there's a contact name for this user
-                $contactStmt = $pdo->prepare("
-                    SELECT contact_name
-                    FROM contacts
-                    WHERE user_id = ? AND contact_user_id = ?
-                    LIMIT 1
-                ");
-                $contactStmt->execute([$createdBy, $participant['id']]);
-                $contact = $contactStmt->fetch();
-                
-                // Use contact name if available, otherwise use username
-                $chat['other_participant_name'] = $contact ? $contact['contact_name'] : $participant['username'];
-            }
+        // Build a simple response without complex nested data that might cause encoding issues
+        $response_data = [
+            'id' => $chatId,
+            'chat_name' => $chatName,
+            'chat_type' => $chatType,
+            'created_by' => $createdBy,
+            'created_at' => date('Y-m-d H:i:s') // Use current time since we just created it
+        ];
+        
+        // For group chats, return member count
+        if ($chatType === 'group') {
+            // Count participants
+            $countStmt = $pdo->prepare("SELECT COUNT(*) as count FROM chat_participants WHERE chat_id = ?");
+            $countStmt->execute([$chatId]);
+            $countResult = $countStmt->fetch();
+            $response_data['member_count'] = (int)$countResult['count'];
         }
-        
-        sendResponse(true, "Chat created successfully", $chat);
-    } catch (Exception $e) {
-        // Rollback transaction on error
-        $pdo->rollback();
+                
+        sendResponse(true, "Chat created successfully", $response_data);
+    } catch (Throwable $e) {
+        // Rollback transaction on error only if transaction is active
+        if ($pdo && $pdo->inTransaction()) {
+            $pdo->rollback();
+        }
         sendResponse(false, "Error creating chat: " . $e->getMessage());
     }
 }
@@ -377,6 +484,7 @@ function handleUpdateChat() {
     $user = authenticateRequest($pdo);
     if (!$user) {
         sendResponse(false, "Authentication required");
+        exit;
     }
     
     // Get JSON input
@@ -410,11 +518,43 @@ function handleUpdateChat() {
         $stmt->execute([$chatName, $chatId]);
         
         // Get the updated chat
-        $chat = getChatById($pdo, $chatId);
+        $stmt = $pdo->prepare(
+            "SELECT 
+                c.id,
+                c.chat_name,
+                c.chat_type,
+                c.created_by,
+                c.created_at,
+                c.updated_at,
+                c.is_deleted_for_everyone
+            FROM chats c
+            WHERE c.id = ?"
+        );
+        $stmt->execute([$chatId]);
+        $chat = $stmt->fetch();
         
-        sendResponse(true, "Chat updated successfully", $chat);
-    } catch (Exception $e) {
+        // Build a simple response without complex nested data that might cause encoding issues
+        $response_data = [
+            'id' => $chatId,
+            'chat_name' => $chat['chat_name'],
+            'chat_type' => $chat['chat_type'],
+            'created_by' => $chat['created_by'],
+            'updated_at' => $chat['updated_at'],
+            'is_deleted_for_everyone' => $chat['is_deleted_for_everyone']
+        ];
+        
+        // For group chats, include member count
+        if ($chat['chat_type'] === 'group') {
+            $countStmt = $pdo->prepare("SELECT COUNT(*) as count FROM chat_participants WHERE chat_id = ?");
+            $countStmt->execute([$chatId]);
+            $countResult = $countStmt->fetch();
+            $response_data['member_count'] = (int)$countResult['count'];
+        }
+        
+        sendResponse(true, "Chat updated successfully", $response_data);
+    } catch (Throwable $e) {
         sendResponse(false, "Error updating chat: " . $e->getMessage());
+        exit;
     }
 }
 
@@ -425,6 +565,7 @@ function handleDeleteChat() {
     $user = authenticateRequest($pdo);
     if (!$user) {
         sendResponse(false, "Authentication required");
+        exit;
     }
     
     // Get JSON input
@@ -437,10 +578,12 @@ function handleDeleteChat() {
     // Verify that the authenticated user is the same as the user in the request
     if ($user['id'] != $userId) {
         sendResponse(false, "User ID mismatch");
+        exit;
     }
     
     if (!$chatId || !$userId) {
         sendResponse(false, "Chat ID and User ID are required");
+        exit;
     }
     
     try {
@@ -502,8 +645,9 @@ function handleDeleteChat() {
             
             sendResponse(true, "Chat deleted for you");
         }
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         sendResponse(false, "Error deleting chat: " . $e->getMessage());
+        exit;
     }
 }
 

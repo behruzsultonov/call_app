@@ -265,6 +265,14 @@ api.updateChat = (data) =>
 api.deleteChat = (data) =>
   apiClient.delete('index.php?action=chats', { data });
 
+// Add participant to chat
+api.addParticipant = (data) =>
+  apiClient.post('index.php?action=chats&subaction=add_participant', {
+    chat_id: Number(data.chat_id),
+    user_id: Number(data.user_id),
+    participant_id: Number(data.participant_id)
+  });
+
 // ------------------ MESSAGES ------------------
 api.getMessages = (chatId, userId, limit = 50, offset = 0) =>
   apiClient.get('index.php', {

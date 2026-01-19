@@ -10,6 +10,8 @@ export default function ChatHeader({
   onVideoCallPress,
   onContactInfoPress,
   rightButton,
+  isGroup = false,
+  participantsCount = 0,
 }) {
   const insets = useSafeAreaInsets();
 
@@ -30,7 +32,11 @@ export default function ChatHeader({
           <Text style={styles.phone} numberOfLines={1} ellipsizeMode="tail">
             {title || '+992 98 55...'}
           </Text>
-          <Text style={styles.status}>Just now</Text>
+          {isGroup && (
+            <Text style={styles.groupStatus}>{participantsCount} members</Text>
+          ) || (
+            <Text style={styles.status}>Just now</Text>
+          )}
         </View>
       </TouchableOpacity>
 
@@ -95,6 +101,12 @@ const styles = StyleSheet.create({
   },
 
   status: {
+    fontSize: 13,
+    color: '#e88a17',
+    marginTop: -2,
+  },
+
+  groupStatus: {
     fontSize: 13,
     color: '#e88a17',
     marginTop: -2,

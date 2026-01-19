@@ -47,6 +47,7 @@ export default function ChatScreen({ route, navigation }) {
   const [userId, setUserId] = useState(null);
   const [input, setInput] = useState('');
   const [otherParticipantName, setOtherParticipantName] = useState(null);
+  const [groupParticipants, setGroupParticipants] = useState([]); // For group chats
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [visibleImageViewer, setVisibleImageViewer] = useState(false);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
@@ -71,6 +72,8 @@ export default function ChatScreen({ route, navigation }) {
   const chatName = chat?.name || 'Unknown Contact';
   const isPrivateChat = chat?.isPrivate;
   const otherParticipantId = chat?.otherParticipantId;
+  const initialMemberCount = chat?.memberCount || 0;
+  const [chatParticipants, setChatParticipants] = useState([]); // Store all chat participants
   useEffect(() => {
     // Load user data and then messages
     loadUserData();
@@ -78,6 +81,11 @@ export default function ChatScreen({ route, navigation }) {
     // For private chats, we might want to fetch the participant name if not provided
     if (isPrivateChat && otherParticipantId && !chatName) {
       loadParticipantName();
+    }
+    
+    // For group chats, load all participants
+    if (!isPrivateChat && chatId) {
+      loadChatParticipants();
     }
   }, []);
 
@@ -504,6 +512,24 @@ export default function ChatScreen({ route, navigation }) {
       }
     } catch (error) {
       console.error('Error loading participant name:', error);
+    }
+  };
+  
+  const loadChatParticipants = async () => {
+    if (!chatId || !userId) return;
+    
+    try {
+      // Get updated chat info from the API which now includes participants for group chats
+      const response = await api.getChats(userId);
+      if (response.data.success && response.data.data) {
+        const currentChat = response.data.data.find(c => String(c.id) === String(chatId));
+        if (currentChat && currentChat.participants) {
+          // Update chat participants if available in the response
+          setChatParticipants(currentChat.participants);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading chat participants:', error);
     }
   };
 
@@ -1291,6 +1317,8 @@ export default function ChatScreen({ route, navigation }) {
           onBackPress={() => navigation.goBack()} 
           onCallPress={handleAudioCall}
           onVideoCallPress={handleVideoCall}
+          isGroup={!isPrivateChat}
+          participantsCount={initialMemberCount || chatParticipants.length || 0}
           rightButton={
             <TouchableOpacity onPress={() => setShowSearch(true)}>
               <Icon name="search" size={24} color={theme.primary} />
@@ -1308,7 +1336,14 @@ export default function ChatScreen({ route, navigation }) {
                 }
               });
             } else {
-              navigation.navigate('ContactInfo');
+              // For group chats, navigate to group info screen
+              navigation.navigate('GroupInfo', {
+                chatId: chatId,
+                chatName: chatName,
+                participants: chatParticipants,
+                currentUserId: userId,
+                memberCount: initialMemberCount || chatParticipants.length || 0
+              });
             }
           }}
         />

@@ -13,6 +13,9 @@ import CallInfoScreen from '../Pages/CallInfoScreen';
 import SplashScreen from '../Pages/SplashScreen';
 import AddContactScreen from '../Pages/AddContactScreen';
 import RecordedCallsScreen from '../Pages/RecordedCallsScreen';
+import AddGroupScreen from '../Pages/AddGroupScreen';
+import GroupInfoScreen from '../Pages/GroupInfoScreen';
+import SelectContactsToAddScreen from '../Pages/SelectContactsToAddScreen';
 import { WebRTCProvider } from '../contexts/WebRTCContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAuthToken } from '../services/Client';
@@ -36,6 +39,9 @@ export default function AppNavigator() {
           <Stack.Screen name="ThemeSelection" component={ThemeSelectionScreen} />
           <Stack.Screen name="AddContact" component={AddContactScreen} />
           <Stack.Screen name="RecordedCalls" component={RecordedCallsScreen} />
+          <Stack.Screen name="AddGroup" component={AddGroupScreen} />
+          <Stack.Screen name="GroupInfo" component={GroupInfoScreen} />
+          <Stack.Screen name="SelectContactsToAdd" component={SelectContactsToAddScreen} />
         </Stack.Navigator>
       </WebRTCProvider>
     </NavigationContainer>
