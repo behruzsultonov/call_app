@@ -14,6 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     sendResponse(false, "Method not allowed");
 }
 
+// Include the shared message utilities
+require_once __DIR__ . '/../../lib/MessageUtils.php';
+
 // Authenticate request
 $user = authenticateRequest($pdo);
 if (!$user) {
@@ -167,6 +170,10 @@ try {
     
     // Add default status
     $message['status'] = 'sent';
+    
+    // Send push notifications to participants (except sender)
+    require_once __DIR__ . '/../../lib/fcm_client.php';
+    sendMessageNotifications($pdo, $chatId, $senderId, $message);
     
     error_log("Video uploaded successfully. Message ID: " . $messageId);
     sendResponse(true, "Video uploaded successfully", $message);

@@ -19,11 +19,13 @@ import { useTheme } from '../contexts/ThemeContext';
 import api from '../services/Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import messaging from '@react-native-firebase/messaging';
+import notifee, { EventType } from '@notifee/react-native';
 
 export default function ChatsScreen({ navigation }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  
+
   const [chats, setChats] = useState([]);
   const [filteredChats, setFilteredChats] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -47,7 +49,18 @@ export default function ChatsScreen({ navigation }) {
     }
   }, [userId]);
 
-    useFocusEffect(
+  // Notification handling useEffect
+  useEffect(() => {
+    // Set up notification handlers when component mounts
+    setupNotificationHandlers();
+    
+    // Cleanup function
+    return () => {
+      // Any cleanup needed for notification handlers
+    };
+  }, []);
+
+  useFocusEffect(
     React.useCallback(() => {
       const backAction = () => {
         return true;
@@ -437,6 +450,58 @@ export default function ChatsScreen({ navigation }) {
     } catch (error) {
       console.log('Error deleting chat:', error);
       Alert.alert(t('error'), t('failedToDeleteChat'));
+    }
+  };
+
+  // Notification handling functions
+  const setupNotificationHandlers = async () => {
+    // Handle initial notification when app is launched from a notification (app was killed)
+    const initialNotification = await messaging().getInitialNotification();
+    if (initialNotification) {
+      handleNotificationNavigation(initialNotification.data);
+    }
+    
+    // Handle notification when app is in background and user taps on it
+    messaging().onNotificationOpenedApp(async (remoteMessage) => {
+      if (remoteMessage) {
+        handleNotificationNavigation(remoteMessage.data);
+      }
+    });
+    
+    // Handle notification when app is in foreground
+    notifee.onForegroundEvent(async ({ type, detail }) => {
+      if (type === EventType.PRESS) {
+        const notificationData = detail.notification?.data;
+        if (notificationData) {
+          handleNotificationNavigation(notificationData);
+        }
+      }
+    });
+  };
+
+  const handleNotificationNavigation = (notificationData) => {
+    if (notificationData) {
+      const { chatId, senderId, senderName } = notificationData;
+      
+      if (chatId) {
+        // Convert to numbers if they are strings
+        const chatIdNum = typeof chatId === 'string' ? parseInt(chatId) : chatId;
+        const senderIdNum = typeof senderId === 'string' ? parseInt(senderId) : senderId;
+        
+        // Navigate to the chat screen with proper chat object structure
+        // Use the chat type from notification data to determine if it's a group or private chat
+        const isPrivateChat = notificationData.chatType === 'private';
+        
+        navigation.navigate('Chat', {
+          chat: {
+            id: chatIdNum,
+            name: senderName || (isPrivateChat ? 'Unknown Contact' : 'Unknown Group'),
+            isPrivate: isPrivateChat,
+            otherParticipantId: isPrivateChat ? senderIdNum : undefined,
+            memberCount: isPrivateChat ? 2 : 0 // For private chats, member count is usually 2
+          }
+        });
+      }
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Switch } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import api from '../services/Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '../components/Header';
+import { useChatNotificationSetting } from '../hooks/useChatNotificationSetting';
 
 export default function ContactInfoScreen({ navigation }) {
   const route = useRoute();
@@ -17,6 +18,12 @@ export default function ContactInfoScreen({ navigation }) {
   const [contactData, setContactData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState(null);
+  
+  // Extract chatId from route params if available (when coming from ChatScreen)
+  const { chatId } = route.params || {};
+  
+  // Use the notification hook for chat notifications if chatId is available
+  const { isEnabled: notificationsEnabled, loading: notificationLoading, toggleNotification } = useChatNotificationSetting(chatId);
   
   // Default contact data if none provided (for direct navigation)
   const displayContact = contactData || contact || {
@@ -235,16 +242,27 @@ export default function ContactInfoScreen({ navigation }) {
       </View>
 
       {/* Shared media and notifications block without arrows */}
-      <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
-        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
+      <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>        
+        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>          
           <Text style={[styles.menuText, { color: theme.text }]}>{t('sharedMedia')}</Text>
         </TouchableOpacity>
-        
+              
         <View style={[styles.separator, { borderBottomColor: theme.border }]} />
-        
-        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
-          <Text style={[styles.menuText, { color: theme.text }]}>{t('notifications')}</Text>
-        </TouchableOpacity>
+              
+        <View style={[styles.menuItem, { borderBottomColor: theme.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>          
+          <Text style={[styles.menuText, { color: theme.text, flex: 1 }]}>{t('notifications')}</Text>
+          {chatId ? (
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={toggleNotification}
+              disabled={notificationLoading}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={notificationsEnabled ? '#f5dd4b' : '#f4f3f4'}
+            />
+          ) : (
+            <Text style={{ color: theme.textSecondary, fontSize: 14 }}>{t('enabled')}</Text>
+          )}
+        </View>
       </View>
 
       {/* Block User and Delete Contact - Combined block without icons */}

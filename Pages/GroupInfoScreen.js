@@ -9,11 +9,13 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Switch,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import api from '../services/Client';
+import { useChatNotificationSetting } from '../hooks/useChatNotificationSetting'; // Added import
 
 export default function GroupInfoScreen({ route, navigation }) {
   const { t } = useTranslation();
@@ -32,6 +34,9 @@ export default function GroupInfoScreen({ route, navigation }) {
 
   const [loadedParticipants, setLoadedParticipants] = useState(participants);
   const [userContacts, setUserContacts] = useState({}); // Store user's contacts by user ID
+  
+  // Use the notification hook
+  const { isEnabled: notificationsEnabled, loading: notificationLoading, toggleNotification } = useChatNotificationSetting(chatId);
 
   // Load user's contacts to get saved contact names
   useEffect(() => {
@@ -204,7 +209,13 @@ export default function GroupInfoScreen({ route, navigation }) {
     <View style={styles.card}>
       <View style={styles.rowBetween}>
         <Text style={styles.rowTitle}>{t('notifications')}</Text>
-        <Text style={styles.rowValue}>{t('enabled')}</Text>
+        <Switch
+          value={notificationsEnabled}
+          onValueChange={toggleNotification}
+          disabled={notificationLoading}
+          trackColor={{ false: '#767577', true: '#81b0ff' }}
+          thumbColor={notificationsEnabled ? '#f5dd4b' : '#f4f3f4'}
+        />
       </View>
       <View style={styles.divider} />
       <View>

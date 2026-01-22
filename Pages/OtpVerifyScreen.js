@@ -9,7 +9,9 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import messaging from '@react-native-firebase/messaging';
 import Header from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
@@ -135,6 +137,17 @@ export default function OtpVerifyScreen({ navigation }) {
         
         // Clear temp phone number
         await AsyncStorage.removeItem('tempPhoneNumber');
+        
+        // Get FCM token and save it to backend
+        try {
+          const fcmToken = await messaging().getToken();
+          if (fcmToken) {
+            await api.updateFcmToken(fcmToken, Platform.OS);
+            console.log('FCM token updated successfully after login');
+          }
+        } catch (tokenError) {
+          console.log('Failed to get or update FCM token:', tokenError);
+        }
         
         // Navigate to main tabs
         navigation.navigate('MainTabs');

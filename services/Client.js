@@ -561,6 +561,29 @@ api.deleteCall = (callId, userId) => {
   });
 };
 
+// ------------------ PUSH NOTIFICATIONS ------------------
+api.updateFcmToken = (fcmToken, platform = 'android') => {
+  return apiClient.post('index.php?action=push_token', {
+    fcm_token: fcmToken,
+    platform: platform
+  });
+};
+
+// Chat notification settings
+api.getChatNotificationSetting = (userId, chatId) => {
+  return apiClient.get('index.php', {
+    params: { 
+      action: 'notification_settings', 
+      user_id: userId, 
+      chat_id: chatId 
+    }
+  });
+};
+
+api.setChatNotificationSetting = (data) => {
+  return apiClient.post('index.php?action=notification_settings', data);
+};
+
 // Check HTTPS certificate validity
 api.checkCertificate = async () => {
   try {

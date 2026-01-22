@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../lib/utils.php';
 require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
+require_once __DIR__ . '/../../lib/MessageUtils.php';
 
 // Check if database connection is available
 if (!$pdo) {
@@ -190,10 +191,22 @@ function handleSendMessage() {
         // Add default status
         $message['status'] = 'sent';
         
+        // Send push notifications to participants (except sender)
+        sendMessageNotifications($pdo, $chatId, $senderId, $message);
+        
         sendResponse(true, "Message sent successfully", $message);
     } catch (Exception $e) {
         sendResponse(false, "Error sending message: " . $e->getMessage());
     }
+}
+
+function sendFirebaseNotificationToUser($fcmToken, $title, $body, $data = []) {
+    // Use the new FCM client
+    require_once __DIR__ . '/../../lib/fcm_client.php';
+    
+    $result = sendFirebaseNotification($fcmToken, $title, $body, $data, true, true);
+    
+    return $result['success'];
 }
 
 function handleUpdateMessage() {

@@ -22,9 +22,9 @@ import { setAuthToken } from '../services/Client';
 
 const Stack = createNativeStackNavigator();
 
-export default function AppNavigator() {
+export default function AppNavigator({ navigationRef }) {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <WebRTCProvider>
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Splash">
           <Stack.Screen name="Splash" component={SplashScreen} />

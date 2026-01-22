@@ -67,6 +67,15 @@ switch ($action) {
         require_once __DIR__ . '/api/calls/calls.php';
         break;
         
+    case 'notification_settings':
+        require_once __DIR__ . '/api/chats/notification_settings.php';
+        break;
+        
+    // PUSH NOTIFICATION ENDPOINT
+    case 'push_token':
+        require_once __DIR__ . '/api/push/token.php';
+        break;
+        
     case 'test':
         // Simple test endpoint
         header('Content-Type: application/json');

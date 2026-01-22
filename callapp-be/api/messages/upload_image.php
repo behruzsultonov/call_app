@@ -1,5 +1,9 @@
 <?php
 // Image upload endpoint for messages
+// Add at the top of the PHP file, after the require_once statements
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../lib/utils.php';
 require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
@@ -13,6 +17,9 @@ if (!$pdo) {
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     sendResponse(false, "Method not allowed");
 }
+
+// Include the shared message utilities
+require_once __DIR__ . '/../../lib/MessageUtils.php';
 
 // Authenticate request
 $user = authenticateRequest($pdo);
@@ -168,6 +175,10 @@ try {
     
     // Add default status
     $message['status'] = 'sent';
+    
+    // Send push notifications to participants (except sender)
+    require_once __DIR__ . '/../../lib/fcm_client.php';
+    sendMessageNotifications($pdo, $chatId, $senderId, $message);
     
     error_log("Image uploaded successfully. Message ID: " . $messageId);
     sendResponse(true, "Image uploaded successfully", $message);

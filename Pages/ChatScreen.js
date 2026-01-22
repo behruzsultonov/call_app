@@ -43,6 +43,7 @@ export default function ChatScreen({ route, navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const [manualRefresh, setManualRefresh] = useState(false); // New state to track manual refresh
   const [userId, setUserId] = useState(null);
   const [input, setInput] = useState('');
@@ -96,6 +97,13 @@ export default function ChatScreen({ route, navigation }) {
       loadMessages();
     }
   }, [chatId, userId]); // Add userId to dependency array to ensure reload when it changes
+
+  useEffect(() => {
+    // если не поиск и пользователь был внизу — держим чат внизу
+    if (!searchQuery && isAtBottom) {
+      setTimeout(() => scrollToBottom(true), 50);
+    }
+  }, [messages.length]);
 
   // Simplified polling implementation for real-time updates
   useEffect(() => {
@@ -169,10 +177,7 @@ export default function ChatScreen({ route, navigation }) {
         setManualRefresh(true);
       }
       
-      console.log('Loading messages for chat:', chatId, 'user:', userId);
-      
       const response = await api.getMessages(chatId, userId);
-      console.log('Messages response:', response.data);
       
       if (response.data.success) {
         // Transform messages to match the expected format
@@ -197,7 +202,6 @@ export default function ChatScreen({ route, navigation }) {
             // Use HTTP instead of HTTPS since HTTPS has certificate issues
             const baseUrl = 'http://sadoapp.tj/callapp-be/';
             baseMessage.imageUrl = `${baseUrl}${msg.file_url}`;
-            console.log('Image URL for message:', baseMessage.id, baseMessage.imageUrl);
           } else if (msg.message_type === 'video' && msg.file_url) {
             baseMessage.videoUrl = `http://sadoapp.tj/callapp-be/${msg.file_url}`;
           } else if (msg.message_type === 'audio' && msg.file_url) {
@@ -207,8 +211,12 @@ export default function ChatScreen({ route, navigation }) {
           return baseMessage;
         });
         
-        console.log('Formatted messages:', formattedMessages);
         setMessages(formattedMessages);
+        
+        // после рендера чуть подождём и скроллим вниз
+        setTimeout(() => {
+          scrollToBottom(false);
+        }, 50);
       } else {
         console.log('Failed to load messages:', response.data.message);
         // Only update the lists if we're not currently searching
@@ -294,6 +302,9 @@ export default function ChatScreen({ route, navigation }) {
           }
           return updatedMessages;
         });
+        
+        // Сразу вниз
+        setTimeout(() => scrollToBottom(true), 50);
       } else {
         // Remove temporary message if sending failed
         setMessages(prev => prev.filter(msg => msg.id !== tempId));
@@ -411,6 +422,9 @@ export default function ChatScreen({ route, navigation }) {
           }
           return updatedMessages;
         });
+        
+        // Сразу вниз
+        setTimeout(() => scrollToBottom(true), 50);
       } else {
         // Remove temporary message if sending failed
         setMessages(prev => prev.filter(msg => msg.id !== tempId));
@@ -489,6 +503,9 @@ export default function ChatScreen({ route, navigation }) {
           }
           return updatedMessages;
         });
+        
+        // Сразу вниз
+        setTimeout(() => scrollToBottom(true), 50);
       } else {
         // Remove temporary message if sending failed
         setMessages(prev => prev.filter(msg => msg.id !== tempId));
@@ -648,7 +665,6 @@ export default function ChatScreen({ route, navigation }) {
     }
 
     if (item.messageType === 'image') {
-      console.log('Rendering image message:', item);
       return (
         <TouchableWithoutFeedback onLongPress={() => handleLongPressMessage(item)}>
           <View
@@ -891,14 +907,8 @@ export default function ChatScreen({ route, navigation }) {
     // Get all image messages
     const imageMessages = messages.filter(msg => msg.messageType === 'image' && msg.imageUrl);
     
-    console.log('Opening image viewer for message:', message);
-    console.log('All image messages:', imageMessages);
-    
     // Find the index of the clicked message
     const index = imageMessages.findIndex(imgMsg => imgMsg.id === message.id);
-    
-    console.log('Found index:', index);
-    console.log('Image URLs for viewer:', getImageUrls());
     
     if (index !== -1) {
       setImageViewerIndex(index);
@@ -919,7 +929,6 @@ export default function ChatScreen({ route, navigation }) {
         };
       });
       
-    console.log('Image URLs for viewer:', imageUrls);
     return imageUrls;
   };
 
@@ -1012,6 +1021,26 @@ export default function ChatScreen({ route, navigation }) {
       animated: true,
       viewPosition: 0.5, // будет примерно по центру экрана
     });
+  };
+  
+  const scrollToBottom = (animated = false) => {
+    requestAnimationFrame(() => {
+      if (listRef.current && messages.length > 0) {
+        listRef.current.scrollToIndex({
+          index: messages.length - 1,
+          animated,
+          viewPosition: 1, // низ
+        });
+      }
+    });
+  };
+
+  const handleScroll = (e) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const paddingToBottom = 40; // допуск
+    const atBottom =
+      layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    setIsAtBottom(atBottom);
   };
   
   const goNextMatch = () => {
@@ -1231,6 +1260,9 @@ export default function ChatScreen({ route, navigation }) {
           }
           return updatedMessages;
         });
+        
+        // Сразу вниз
+        setTimeout(() => scrollToBottom(true), 50);
       } else {
         // Remove temporary message if sending failed
         setMessages(prev => prev.filter(msg => msg.id !== tempId));
@@ -1328,6 +1360,7 @@ export default function ChatScreen({ route, navigation }) {
             // Pass contact data when navigating to ContactInfo screen
             if (isPrivateChat && otherParticipantId) {
               navigation.navigate('ContactInfo', {
+                chatId: chatId, // Pass the chat ID for notification settings
                 contact: {
                   name: otherParticipantName || chatName,
                   phone: '', // We would need to fetch this from the API
@@ -1373,14 +1406,13 @@ export default function ChatScreen({ route, navigation }) {
           refreshing={manualRefresh}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          onScrollToIndexFailed={(info) => {
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          onScrollToIndexFailed={({ index }) => {
+            listRef.current?.scrollToOffset({ offset: index * 80, animated: true });
             setTimeout(() => {
-              listRef.current?.scrollToIndex({
-                index: info.index,
-                animated: true,
-                viewPosition: 0.5,
-              });
-            }, 250);
+              listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+            }, 200);
           }}
         />
       
