@@ -19,28 +19,38 @@ export default function ContactInfoScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState(null);
   
+  // Extract parameters passed from navigation
+  const { contactId, contactName, contactUserId, sender_id, sender_name } = route.params || {};
+  
   // Extract chatId from route params if available (when coming from ChatScreen)
   const { chatId } = route.params || {};
   
   // Use the notification hook for chat notifications if chatId is available
   const { isEnabled: notificationsEnabled, loading: notificationLoading, toggleNotification } = useChatNotificationSetting(chatId);
-  
-  // Default contact data if none provided (for direct navigation)
-  const displayContact = contactData || contact || {
-    name: 'Jane Smith',
-    phone: '+992 98 558 0777',
-    status: 'green'
-  };
+
+  // Determine which ID to use (prioritize contactUserId from navigation, then contactId, then sender_id)
+  const actualContactId = contactUserId || contactId || sender_id;
+
+  // Use the contact data passed from navigation, fallback to route params, or to state data
+  // If no contact data is available yet, use the provided name if available
+  const displayContact = contactData || (contact ? contact : (actualContactId && contactName ? { name: contactName } : null));
 
   useEffect(() => {
     loadUserData();
     
-    if (contact && contact.id && !contact.phone) {
-      loadContactDetails(contact.id);
+    // Load contact details if we have a contact ID but no complete contact data
+    if (actualContactId && !contactData) {
+      loadContactDetails(actualContactId);
     } else if (contact) {
-      setContactData(contact);
+      // If contact object is passed and it has phone info, use it
+      if (contact.phone) {
+        setContactData(contact);
+      } else {
+        // Otherwise, still load from API to get complete info
+        loadContactDetails(actualContactId || contact.id);
+      }
     }
-  }, [contact]);
+  }, [actualContactId, contact, userId]);
 
   const loadUserData = async () => {
     try {
@@ -62,18 +72,54 @@ export default function ContactInfoScreen({ navigation }) {
       
       if (response.data.success && response.data.data) {
         const userData = response.data.data;
+        
+        // Try to get the contact name as saved in user's contacts
+        let finalContactName = userData.username || 'Unknown';
+        
+        // Check if there's a custom contact name saved in the contacts table
+        if (userId) {
+          try {
+            const contactsResponse = await api.getContacts(userId);
+            if (contactsResponse.data.success && contactsResponse.data.data) {
+              const contactEntry = contactsResponse.data.data.find(c => 
+                parseInt(c.contact_user_id) === parseInt(contactId)
+              );
+              if (contactEntry && contactEntry.contact_name) {
+                finalContactName = contactEntry.contact_name;
+              }
+            }
+          } catch (contactError) {
+            console.log('Could not fetch contacts:', contactError);
+            // Fallback to username if contact fetch fails
+            finalContactName = userData.username || 'Unknown';
+          }
+        }
+        
         setContactData({
-          name: userData.username || contact.name,
-          phone: userData.phone_number || contact.phone || '+992 98 558 0777',
-          status: contact.status || 'green',
           id: contactId,
-          contact_user_id: contact.contact_user_id || contactId // Preserve the contact_user_id
+          name: finalContactName,
+          phone: userData.phone_number || '',
+          status: 'green',
+          contact_user_id: contactId
+        });
+      } else {
+        // If API call fails, at least set the name if we have it
+        setContactData({
+          id: contactId,
+          name: 'Unknown',
+          phone: '',
+          contact_user_id: contactId
         });
       }
     } catch (error) {
       console.error('Error loading contact details:', error);
-      // Fallback to provided contact data
-      setContactData(contact);
+      // If API call fails, at least set the name if we have it
+      setContactData({
+        id: contactId,
+        name: 'Unknown',
+        phone: '',
+        contact_user_id: contactId
+      });
     } finally {
       setLoading(false);
     }
@@ -81,7 +127,7 @@ export default function ContactInfoScreen({ navigation }) {
 
   const createChatWithContact = async () => {
     // Use the contact_user_id instead of id for chat operations
-    const contactUserId = displayContact.contact_user_id || displayContact.id;
+    const contactUserId = displayContact?.contact_user_id || displayContact?.id;
     
     if (!userId || !contactUserId) {
       Alert.alert('Error', 'Unable to create chat. Missing user or contact information.');
@@ -98,7 +144,7 @@ export default function ContactInfoScreen({ navigation }) {
         navigation.navigate('Chat', { 
           chat: { 
             id: existingChat.id, 
-            name: displayContact.name,
+            name: displayContact?.name,
             isPrivate: true,
             otherParticipantId: contactUserId
           }
@@ -106,7 +152,7 @@ export default function ContactInfoScreen({ navigation }) {
       } else {
         // No existing chat found, create a new one
         const chatData = {
-          chat_name: displayContact.name,
+          chat_name: displayContact?.name,
           chat_type: 'private',
           created_by: userId,
           participants: [userId, contactUserId]
@@ -119,7 +165,7 @@ export default function ContactInfoScreen({ navigation }) {
           navigation.navigate('Chat', { 
             chat: { 
               id: response.data.data.id, 
-              name: displayContact.name,
+              name: displayContact?.name,
               isPrivate: true,
               otherParticipantId: contactUserId
             }
@@ -135,7 +181,7 @@ export default function ContactInfoScreen({ navigation }) {
   };
 
   const deleteContact = async () => {
-    if (!userId || !displayContact.id) {
+    if (!userId || !displayContact?.id) {
       Alert.alert('Error', 'Unable to delete contact. Missing user or contact information.');
       return;
     }
@@ -176,10 +222,18 @@ export default function ContactInfoScreen({ navigation }) {
     );
   };
 
+  if (loading && !contactData) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: theme.text }}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       <Header
-        title={displayContact.name}
+        title={displayContact?.name || 'Contact Info'}
         onBack={() => navigation.goBack()}
         rightButton={
           <TouchableOpacity onPress={deleteContact}>
@@ -198,7 +252,7 @@ export default function ContactInfoScreen({ navigation }) {
           </View>
 
           {/* Show name instead of phone number here */}
-          <Text style={[styles.phone, { color: theme.text }]}>{displayContact.name}</Text>
+          <Text style={[styles.phone, { color: theme.text }]}>{displayContact?.name || 'Unknown'}</Text>
           <Text style={[styles.timeAgo, { color: theme.textSecondary }]}>1 min. ago</Text>
         </View>
 
@@ -238,7 +292,7 @@ export default function ContactInfoScreen({ navigation }) {
         <View style={styles.infoItem}>
           <Text style={[styles.infoLabel, { color: theme.text }]}>{t('phone')}</Text>
         </View>
-        <Text style={[styles.phoneNumber, { color: theme.primary }]}>{displayContact.phone}</Text>
+        <Text style={[styles.phoneNumber, { color: theme.primary }]}>{displayContact?.phone || 'No phone number'}</Text>
       </View>
 
       {/* Shared media and notifications block without arrows */}
@@ -246,9 +300,9 @@ export default function ContactInfoScreen({ navigation }) {
         <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>          
           <Text style={[styles.menuText, { color: theme.text }]}>{t('sharedMedia')}</Text>
         </TouchableOpacity>
-              
+        
         <View style={[styles.separator, { borderBottomColor: theme.border }]} />
-              
+        
         <View style={[styles.menuItem, { borderBottomColor: theme.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>          
           <Text style={[styles.menuText, { color: theme.text, flex: 1 }]}>{t('notifications')}</Text>
           {chatId ? (
@@ -270,7 +324,7 @@ export default function ContactInfoScreen({ navigation }) {
         <TouchableOpacity style={[styles.dangerItem, { borderBottomColor: theme.border }]}>
           <Text style={[styles.dangerText, { color: theme.error }]}>{t('blockUser')}</Text>
         </TouchableOpacity>
-        
+      
         <View style={[styles.separator, { borderBottomColor: theme.border }]} />
         
         <TouchableOpacity 

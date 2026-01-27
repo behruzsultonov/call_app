@@ -31,6 +31,10 @@ switch ($action) {
         require_once __DIR__ . '/api/messages/messages.php';
         break;
         
+    case 'favorites':
+        require_once __DIR__ . '/api/messages/favorites.php';
+        break;
+        
     case 'upload_image':
         require_once __DIR__ . '/api/messages/upload_image.php';
         break;

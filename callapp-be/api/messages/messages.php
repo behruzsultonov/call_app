@@ -99,11 +99,58 @@ function handleGetMessages() {
             $message['status'] = $receipt ? $receipt['status'] : 'sent';
         }
         
+        // Extract message IDs to check favorite status
+        $messageIds = array_map(function($message) {
+            return (int)$message['id'];
+        }, $messages);
+        
+        // Check which messages are favorited
+        $favoritedIds = checkFavoriteStatus($pdo, $userId, $messageIds);
+        
+        // Add status information to each message
+        foreach ($messages as &$message) {
+            // Get message status for this user
+            $stmt = $pdo->prepare(
+                "SELECT receipt_type as status 
+                FROM message_receipts 
+                WHERE message_id = ? AND user_id = ?
+                ORDER BY received_at DESC 
+                LIMIT 1"
+            );
+            $stmt->execute([$message['id'], $userId]);
+            $receipt = $stmt->fetch();
+            
+            $message['status'] = $receipt ? $receipt['status'] : 'sent';
+            
+            // Add favorite status
+            $message['is_favorited'] = in_array((int)$message['id'], $favoritedIds);
+        }
+        
         sendResponse(true, "Messages retrieved successfully", $messages);
     } catch (Exception $e) {
         error_log("Error retrieving messages: " . $e->getMessage());
         sendResponse(false, "Error retrieving messages: " . $e->getMessage());
     }
+}
+
+// Helper function to check if messages are favorited
+function checkFavoriteStatus($pdo, $userId, $messageIds) {
+    if (empty($messageIds)) {
+        return [];
+    }
+    
+    $placeholders = str_repeat('?,', count($messageIds) - 1) . '?';
+    $sql = "SELECT message_id FROM favorites WHERE user_id = ? AND message_id IN ($placeholders)";
+    $stmt = $pdo->prepare($sql);
+    $params = array_merge([$userId], $messageIds);
+    $stmt->execute($params);
+    
+    $favoritedIds = [];
+    while ($row = $stmt->fetch()) {
+        $favoritedIds[] = (int)$row['message_id'];
+    }
+    
+    return $favoritedIds;
 }
 
 function handleSendMessage() {
@@ -344,4 +391,7 @@ function handleDeleteMessage() {
         sendResponse(false, "Error deleting message: " . $e->getMessage());
     }
 }
+
+
+
 ?>

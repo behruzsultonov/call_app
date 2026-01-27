@@ -294,6 +294,23 @@ api.updateMessage = (data) =>
 api.deleteMessage = (data) =>
   apiClient.delete('index.php?action=messages', { data });
 
+// Favorite messages API
+api.favoriteMessage = (data) =>
+  apiClient.post('index.php?action=favorites', data);
+
+api.unfavoriteMessage = (data) =>
+  apiClient.delete('index.php?action=favorites', { data });
+
+api.getFavorites = (userId, limit = 50, offset = 0) =>
+  apiClient.get('index.php', {
+    params: {
+      action: 'favorites',
+      user_id: Number(userId),
+      limit,
+      offset,
+    },
+  });
+
 api.markMessageAsRead = (messageId, userId) =>
   apiClient.post('index.php?action=messages_read', {
     message_id: Number(messageId),

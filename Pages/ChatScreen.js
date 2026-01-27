@@ -189,6 +189,8 @@ export default function ChatScreen({ route, navigation }) {
             isMe: parseInt(msg.sender_id) === parseInt(userId), // Compare as integers
             status: msg.status || 'sent', // Use status from message or default to 'sent'
             messageType: msg.message_type || 'text',
+            // Handle favorite status
+            isFavorited: msg.is_favorited || false,
             // Handle deleted messages
             isDeleted: msg.is_deleted_for_everyone === '1' || 
                       msg.is_deleted_for_everyone === 1 ||
@@ -261,7 +263,8 @@ export default function ChatScreen({ route, navigation }) {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: true,
         status: 'sent',
-        messageType: 'text'
+        messageType: 'text',
+        isFavorited: false
       };
       
       // Add temporary message to UI
@@ -297,7 +300,8 @@ export default function ChatScreen({ route, navigation }) {
                 tempMessage.time,
               isMe: parseInt(response.data.data.sender_id) === parseInt(userId), // Compare as integers
               status: response.data.data.status || 'delivered',
-              messageType: response.data.data.message_type || 'text'
+              messageType: response.data.data.message_type || 'text',
+              isFavorited: tempMessage.isFavorited || false
             };
           }
           return updatedMessages;
@@ -379,7 +383,8 @@ export default function ChatScreen({ route, navigation }) {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: true,
         status: 'sending',
-        messageType: 'image'
+        messageType: 'image',
+        isFavorited: false
       };
 
       // Add temporary message to UI
@@ -416,7 +421,8 @@ export default function ChatScreen({ route, navigation }) {
                 tempMessage.time,
               isMe: parseInt(response.data.data.sender_id) === parseInt(userId),
               status: response.data.data.status || 'delivered',
-              messageType: response.data.data.message_type || 'image'
+              messageType: response.data.data.message_type || 'image',
+              isFavorited: tempMessage.isFavorited || false
             };
             console.log('Updated message with image URL:', updatedMessages[tempIndex]);
           }
@@ -461,7 +467,8 @@ export default function ChatScreen({ route, navigation }) {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: true,
         status: 'sending',
-        messageType: 'video'
+        messageType: 'video',
+        isFavorited: false
       };
 
       // Add temporary message to UI
@@ -498,7 +505,8 @@ export default function ChatScreen({ route, navigation }) {
                 tempMessage.time,
               isMe: parseInt(response.data.data.sender_id) === parseInt(userId),
               status: response.data.data.status || 'delivered',
-              messageType: response.data.data.message_type || 'video'
+              messageType: response.data.data.message_type || 'video',
+              isFavorited: tempMessage.isFavorited || false
             };
           }
           return updatedMessages;
@@ -666,7 +674,17 @@ export default function ChatScreen({ route, navigation }) {
 
     if (item.messageType === 'image') {
       return (
-        <TouchableWithoutFeedback onLongPress={() => handleLongPressMessage(item)}>
+        <TouchableOpacity 
+          onPress={() => {
+            console.log('Image TouchableOpacity pressed on message ID:', item.id);
+            openImageViewer(item);
+          }}
+          onLongPress={() => {
+            console.log('Image long press detected on message ID:', item.id);
+            handleLongPressMessage(item);
+          }}
+          delayLongPress={500}
+        >
           <View
             style={{
               maxWidth: '80%',
@@ -675,15 +693,13 @@ export default function ChatScreen({ route, navigation }) {
               alignSelf: item.isMe ? 'flex-end' : 'flex-start', // Align based on sender
             }}
           >
-            <TouchableOpacity onPress={() => openImageViewer(item)}>
-              <Image 
-                source={{ uri: item.imageUrl }} 
-                style={styles.imageMessage}
-                resizeMode="cover"
-                onError={(error) => console.log('Image load error:', error, 'URL:', item.imageUrl)}
-                onLoad={() => console.log('Image loaded successfully:', item.imageUrl)}
-              />
-            </TouchableOpacity>
+            <Image 
+              source={{ uri: item.imageUrl }} 
+              style={styles.imageMessage}
+              resizeMode="cover"
+              onError={(error) => console.log('Image load error:', error, 'URL:', item.imageUrl)}
+              onLoad={() => console.log('Image loaded successfully:', item.imageUrl)}
+            />
             {/* Time and status overlay */}
             <View style={[
               styles.imageMessageInfo,
@@ -716,13 +732,23 @@ export default function ChatScreen({ route, navigation }) {
               <Text style={[styles.time, { color: '#ffffff' }]}>{item.time}</Text>
             </View>
           </View>
-        </TouchableWithoutFeedback>
+        </TouchableOpacity>
       );
     }
 
     if (item.messageType === 'video') {
       return (
-        <TouchableWithoutFeedback onLongPress={() => handleLongPressMessage(item)}>
+        <TouchableOpacity 
+          onPress={() => {
+            console.log('Video TouchableOpacity pressed on message ID:', item.id);
+            setFullscreenVideo(item);
+          }}
+          onLongPress={() => {
+            console.log('Video long press detected on message ID:', item.id);
+            handleLongPressMessage(item);
+          }}
+          delayLongPress={500}
+        >
           <View
             style={{
               maxWidth: '80%',
@@ -731,11 +757,9 @@ export default function ChatScreen({ route, navigation }) {
               alignSelf: item.isMe ? 'flex-end' : 'flex-start', // Align based on sender
             }}
           >
-            <TouchableOpacity onPress={() => setFullscreenVideo(item)}>
-              <View style={styles.videoThumbnail}>
-                <Icon name="play-arrow" size={40} color="#ffffff" />
-              </View>
-            </TouchableOpacity>
+            <View style={styles.videoThumbnail}>
+              <Icon name="play-arrow" size={40} color="#ffffff" />
+            </View>
             {/* Time and status overlay */}
             <View style={[
               styles.imageMessageInfo,
@@ -768,7 +792,7 @@ export default function ChatScreen({ route, navigation }) {
               <Text style={[styles.time, { color: '#ffffff' }]}>{item.time}</Text>
             </View>
           </View>
-        </TouchableWithoutFeedback>
+        </TouchableOpacity>
       );
     }
 
@@ -944,46 +968,96 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
   
-  const handleLongPressMessage = (message) => {
-    // Only allow the sender to delete their own messages
-    if (message.isMe) {
-      Alert.alert(
-        t('deleteMessage'),
-        t('deleteMessageConfirmation'),
-        [
-          {
-            text: t('cancel'),
-            style: 'cancel'
-          },
-          {
-            text: t('deleteForMe'),
-            onPress: () => deleteMessage(message.id, false)
-          },
-          {
-            text: t('deleteForEveryone'),
-            onPress: () => deleteMessage(message.id, true)
-          }
-        ],
-        { cancelable: true }
-      );
-    } else {
-      // For messages from others, only allow delete for me
-      Alert.alert(
-        t('deleteMessage'),
-        t('deleteMessageConfirmation'),
-        [
-          {
-            text: t('cancel'),
-            style: 'cancel'
-          },
-          {
-            text: t('deleteForMe'),
-            onPress: () => deleteMessage(message.id, false)
-          }
-        ],
-        { cancelable: true }
-      );
+  const toggleFavorite = async (messageId, isCurrentlyFavorited) => {
+    if (!userId) return;
+
+    try {
+      let response;
+      if (isCurrentlyFavorited) {
+        // Unfavorite the message
+        response = await api.unfavoriteMessage({
+          message_id: messageId,
+          user_id: userId
+        });
+      } else {
+        // Favorite the message
+        response = await api.favoriteMessage({
+          message_id: messageId,
+          user_id: userId
+        });
+      }
+
+      if (response.data.success) {
+        // Update the message in the UI
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === messageId 
+              ? { ...msg, isFavorited: !isCurrentlyFavorited } 
+              : msg
+          )
+        );
+        
+        Alert.alert(
+          t('success'), 
+          isCurrentlyFavorited 
+            ? t('messageRemovedFromFavorites') 
+            : t('messageAddedToFavorites')
+        );
+      } else {
+        Alert.alert(t('error'), response.data.message || t('failedToUpdateFavorite'));
+      }
+    } catch (error) {
+      console.log('Error updating favorite:', error);
+      Alert.alert(t('error'), t('failedToUpdateFavorite'));
     }
+  };
+
+  const handleLongPressMessage = (message) => {
+    // Create menu options based on message properties
+    const menuOptions = [];
+    
+    // Add favorite/unfavorite option
+    if (message.isFavorited) {
+      menuOptions.push({
+        text: t('removeFromFavorites'),
+        onPress: () => toggleFavorite(message.id, true)
+      });
+    } else {
+      menuOptions.push({
+        text: t('addToFavorites'),
+        onPress: () => toggleFavorite(message.id, false)
+      });
+    }
+    
+    // Add delete options based on sender
+    if (message.isMe) {
+      menuOptions.push({
+        text: t('deleteForMe'),
+        onPress: () => deleteMessage(message.id, false)
+      });
+      menuOptions.push({
+        text: t('deleteForEveryone'),
+        onPress: () => deleteMessage(message.id, true)
+      });
+    } else {
+      menuOptions.push({
+        text: t('deleteForMe'),
+        onPress: () => deleteMessage(message.id, false)
+      });
+    }
+    
+    // Add cancel option
+    menuOptions.push({
+      text: t('cancel'),
+      style: 'cancel'
+    });
+    
+    Alert.alert(
+      t('messageOptions'),
+      t('selectMessageAction'),
+      menuOptions,
+      { cancelable: true }
+    );
   };
   
   const handleSearch = (query) => {
@@ -1217,7 +1291,8 @@ export default function ChatScreen({ route, navigation }) {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: true,
         status: 'sending',
-        messageType: 'audio'
+        messageType: 'audio',
+        isFavorited: false
       };
 
       // Add temporary message to UI
@@ -1254,7 +1329,8 @@ export default function ChatScreen({ route, navigation }) {
                 tempMessage.time,
               isMe: parseInt(response.data.data.sender_id) === parseInt(userId),
               status: response.data.data.status || 'delivered',
-              messageType: response.data.data.message_type || 'audio'
+              messageType: response.data.data.message_type || 'audio',
+              isFavorited: tempMessage.isFavorited || false
             };
             console.log('Updated message with audio URL:', updatedMessages[tempIndex]);
           }
