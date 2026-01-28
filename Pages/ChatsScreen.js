@@ -136,6 +136,8 @@ export default function ChatsScreen({ navigation }) {
       if (userDataString && authToken) {
         const user = JSON.parse(userDataString);
         setUserId(user.id);
+      } else {
+        console.log('No user data or auth token found');
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -143,7 +145,9 @@ export default function ChatsScreen({ navigation }) {
   };
   
   const loadChatsData = async (isManualRefresh = false) => {
-    if (!userId) return;
+    if (!userId) {
+      return;
+    }
     
     try {
       // Only set loading state for manual refreshes
@@ -152,12 +156,48 @@ export default function ChatsScreen({ navigation }) {
         setManualRefresh(true);
       }
       
+      // Load regular chats
       const response = await api.getChats(userId);
+      
+      // Load subscribed channels
+      let channelsData = [];
+      try {
+        console.log('[CHANNELS] Loading subscribed channels for user:', userId);
+        const channelsResponse = await api.getMySubscribedChannels();
+        console.log('[CHANNELS] API Response Success:', channelsResponse.data.success);
+        console.log('[CHANNELS] Raw API Response:', channelsResponse.data);
+        
+        if (channelsResponse.data.success) {
+          channelsData = channelsResponse.data.data || [];
+          console.log('[CHANNELS] Successfully loaded', channelsData.length, 'channels');
+          console.log('[CHANNELS] Channel data:', channelsData);
+          
+          // Log each channel's key information
+          channelsData.forEach((channel, index) => {
+            console.log(`[CHANNELS] Channel ${index + 1}:`, {
+              id: channel.id,
+              title: channel.title,
+              username: channel.username,
+              subscriber_count: channel.subscriber_count,
+              is_subscribed: channel.is_subscribed,
+              last_post_date: channel.last_post_date
+            });
+          });
+        } else {
+          console.log('[CHANNELS] API returned failure:', channelsResponse.data.message);
+        }
+      } catch (channelError) {
+        console.log('[CHANNELS] Error loading channels:', channelError.message);
+        console.log('[CHANNELS] Error details:', channelError);
+        // Continue without channels if there's an error
+      }
       
       if (response.data.success) {
         // Transform chats to match the expected format
-        const formattedChats = (response.data.data || []).map(chat => {
-          return {
+        const rawChats = response.data.data || [];
+        
+        const formattedChats = rawChats.map(chat => {
+          const formattedChat = {
             id: chat.id,
             name: chat.chat_type === 'private' && chat.other_participant_name 
               ? chat.other_participant_name 
@@ -169,18 +209,63 @@ export default function ChatsScreen({ navigation }) {
             unread: chat.unread_count || 0,
             isPrivate: chat.chat_type === 'private',
             otherParticipantId: chat.other_participant_id,
-            memberCount: chat.member_count || 0  // Add member count for group chats
+            memberCount: chat.member_count || 0,  // Add member count for group chats
+            type: 'chat'  // Add type to distinguish from channels
           };
+          return formattedChat;
         });
         
-        setChats(formattedChats);
+        // Transform channels to match the chat format
+        console.log('[CHANNELS] Transforming', channelsData.length, 'channels to chat format');
+        const formattedChannels = channelsData.map(channel => {
+          // Get last post date for time display
+          const lastPostTime = channel.last_post_date ? 
+            new Date(channel.last_post_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+            '';
+          
+          const formattedChannel = {
+            id: `channel_${channel.id}`,  // Prefix to avoid ID conflicts
+            name: channel.title,
+            message: `@${channel.username}`,  // Show username as message
+            time: lastPostTime,
+            unread: 0,  // Channels don't have unread count
+            isPrivate: false,
+            channelInfo: {
+              id: channel.id,
+              username: channel.username,
+              subscriberCount: channel.subscriber_count
+            },
+            type: 'channel'  // Add type to distinguish from chats
+          };
+          
+          console.log('[CHANNELS] Formatted channel:', {
+            id: formattedChannel.id,
+            name: formattedChannel.name,
+            message: formattedChannel.message,
+            time: formattedChannel.time,
+            channelInfo: formattedChannel.channelInfo
+          });
+          
+          return formattedChannel;
+        });
+        console.log('[CHANNELS] Total formatted channels:', formattedChannels.length);
+        
+        // Combine chats and channels
+        const allItems = [...formattedChats, ...formattedChannels];
+        console.log('[CHANNELS] Final list contains', formattedChannels.length, 'channels out of', allItems.length, 'total items');
+        
+        // Log channel items specifically
+        const channelItems = allItems.filter(item => item.type === 'channel');
+        console.log('[CHANNELS] Channel items in final list:', channelItems);
+        
+        setChats(allItems);
         
         // Apply search filter only if there's an active search query (non-empty)
         if (searchQuery && searchQuery.trim() !== '') {
-          applySearchFilter(searchQuery, formattedChats);
+          applySearchFilter(searchQuery, allItems);
         } else {
-          // When there's no search query, show all chats
-          setFilteredChats(formattedChats);
+          // When there's no search query, show all chats and channels
+          setFilteredChats(allItems);
         }
       } else {
         console.log('Failed to load chats:', response.data.message);
@@ -255,6 +340,12 @@ export default function ChatsScreen({ navigation }) {
   const handleCreateGroup = () => {
     // Navigate to the AddGroup screen to create a group
     navigation.navigate('AddGroup');
+    setShowFabMenu(false);
+  };
+  
+  const handleCreateChannel = () => {
+    // Navigate to the CreateChannel screen to create a channel
+    navigation.navigate('CreateChannel');
     setShowFabMenu(false);
   };
   
@@ -339,6 +430,13 @@ export default function ChatsScreen({ navigation }) {
           <View style={styles.fabMenu}>
             <TouchableOpacity 
               style={[styles.fabMenuItem, { backgroundColor: theme.primary }]}
+              onPress={handleCreateChannel}
+            >
+              <Icon name="rss-feed" size={20} color={theme.buttonText} />
+            </TouchableOpacity>
+            <View style={styles.menuSpacing} />
+            <TouchableOpacity 
+              style={[styles.fabMenuItem, { backgroundColor: theme.primary }]}
               onPress={handleCreateGroup}
             >
               <Icon name="group" size={20} color={theme.buttonText} />
@@ -366,7 +464,18 @@ export default function ChatsScreen({ navigation }) {
     );
   };
 
-  const renderChatItem = ({ item }) => (
+  const renderChatItem = ({ item }) => {
+    if (item.type === 'channel') {
+      console.log('[CHANNELS] Rendering channel item:', {
+        id: item.id,
+        name: item.name,
+        message: item.message,
+        time: item.time,
+        channelInfo: item.channelInfo
+      });
+    }
+    
+    return (
     <TouchableOpacity 
       style={[
         styles.chatItem,
@@ -375,19 +484,46 @@ export default function ChatsScreen({ navigation }) {
           backgroundColor: theme.cardBackground
         }
       ]}
-      onPress={() => navigation.navigate('Chat', { 
-        chat: { 
-          id: item.id, 
-          name: item.name,
-          // Pass additional data for private chats
-          isPrivate: item.isPrivate,
-          otherParticipantId: item.otherParticipantId,
-          memberCount: item.memberCount || 0  // Pass member count for group chats
+      onPress={() => {
+        if (item.type === 'channel') {
+          // Navigate to channel view
+          console.log('[CHANNELS] Pressed channel item. Navigating to channel ID:', item.channelInfo.id);
+          console.log('[CHANNELS] Passing channel data:', item);
+          navigation.navigate('ChannelView', { 
+            channel: {
+              id: item.channelInfo.id,
+              title: item.name,
+              username: item.channelInfo.username,
+              subscriber_count: item.channelInfo.subscriberCount,
+              is_owner: false, // This will be updated in ChannelViewScreen
+              is_subscribed: true
+            }
+          });
+        } else {
+          // Navigate to regular chat
+          console.log('[CHATS] Pressed chat item. Navigating to chat ID:', item.id);
+          navigation.navigate('Chat', { 
+            chat: { 
+              id: item.id, 
+              name: item.name,
+              // Pass additional data for private chats
+              isPrivate: item.isPrivate,
+              otherParticipantId: item.otherParticipantId,
+              memberCount: item.memberCount || 0  // Pass member count for group chats
+            }
+          });
         }
-      })}
-      onLongPress={() => handleLongPressChat(item)}
+      }}
+      onLongPress={() => {
+        if (item.type !== 'channel') {
+          handleLongPressChat(item);
+        }
+        // No long press action for channels
+      }}
     >
-      <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+      <View style={[styles.avatar, { 
+        backgroundColor: item.type === 'channel' ? '#34C759' : theme.primary 
+      }]}>
         <Text style={[styles.avatarText, { color: theme.buttonText }]}>{item.name ? item.name.charAt(0) : '?'}</Text>
       </View>
       <View style={styles.chatInfo}>
@@ -405,7 +541,8 @@ export default function ChatsScreen({ navigation }) {
         )}
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   const handleLongPressChat = (chat) => {
     Alert.alert(
@@ -524,13 +661,18 @@ export default function ChatsScreen({ navigation }) {
         contentContainerStyle={styles.chatList}
         onRefresh={() => loadChatsData(true)} // Pass true to indicate manual refresh
         refreshing={manualRefresh} // Use manualRefresh instead of loading
-        ListEmptyComponent={
+        ListEmptyComponent={() => {
+          const channelCount = chats.filter(item => item.type === 'channel').length;
+          const chatCount = chats.filter(item => item.type === 'chat').length;
+          console.log('[CHANNELS] List empty component. Channels:', channelCount, 'Chats:', chatCount, 'Total:', chats.length);
+          return (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
               {t('noChatsYet')}
             </Text>
           </View>
-        }
+          );
+        }}
       />
       
       <FabMenu />

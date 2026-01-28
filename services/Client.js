@@ -578,6 +578,89 @@ api.deleteCall = (callId, userId) => {
   });
 };
 
+// ------------------ CHANNELS ------------------
+// Get all channels
+api.getChannels = () => {
+  return apiClient.get('api/channels/channels.php');
+};
+
+// Get user's subscribed channels
+api.getMySubscribedChannels = () => {
+  return apiClient.get('api/channels/channels.php', {
+    params: {
+      action: 'channels',
+      subaction: 'my_channels'
+    }
+  });
+};
+
+// Get specific channel by ID
+api.getChannelById = (channelId) => {
+  return apiClient.get('api/channels/channels.php', {
+    params: {
+      action: 'channels',
+      subaction: 'by_id',
+      channel_id: channelId
+    }
+  });
+};
+
+// Create a new channel
+api.createChannel = (data) => {
+  return apiClient.post('api/channels/channels.php', data);
+};
+
+// Update a channel
+api.updateChannel = (data) => {
+  return apiClient.put('api/channels/channels.php', data);
+};
+
+// Delete a channel
+api.deleteChannel = (data) => {
+  return apiClient.delete('api/channels/channels.php', { data });
+};
+
+// Subscribe to a channel
+api.subscribeToChannel = (channelId) => {
+  return apiClient.post('api/channels/channels.php', {}, {
+    params: {
+      action: 'channels',
+      subaction: 'subscribe',
+      channel_id: Number(channelId)
+    }
+  });
+};
+
+// Unsubscribe from a channel
+api.unsubscribeFromChannel = (channelId) => {
+  return apiClient.post('api/channels/channels.php', {}, {
+    params: {
+      action: 'channels',
+      subaction: 'unsubscribe',
+      channel_id: Number(channelId)
+    }
+  });
+};
+
+// Get channel posts
+api.getChannelPosts = (channelId) => {
+  return apiClient.get('api/channels/posts.php', {
+    params: {
+      channel_id: Number(channelId)
+    }
+  });
+};
+
+// Create a post in a channel
+api.createChannelPost = (data) => {
+  return apiClient.post('api/channels/posts.php', data);
+};
+
+// Delete a post from a channel
+api.deleteChannelPost = (data) => {
+  return apiClient.delete('api/channels/posts.php', { data });
+};
+
 // ------------------ PUSH NOTIFICATIONS ------------------
 api.updateFcmToken = (fcmToken, platform = 'android') => {
   return apiClient.post('index.php?action=push_token', {

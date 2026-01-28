@@ -5,7 +5,7 @@ import ChatsScreen from '../Pages/ChatsScreen';
 import CallsScreen from '../Pages/CallsScreen';
 import ContactsScreen from '../Pages/ContactsScreen';
 import ProfileScreen from '../Pages/ProfileScreen';
-import FavoritesScreen from '../Pages/FavoritesScreen';
+import ChannelsScreen from '../Pages/ChannelsScreen';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
@@ -28,8 +28,8 @@ export default function BottomTabs() {
             iconName = 'call';
           } else if (route.name === 'Contacts') {
             iconName = 'contacts';
-          } else if (route.name === 'Favorites') {
-            iconName = 'star';
+          } else if (route.name === 'Channels') {
+            iconName = 'rss-feed';
           } else if (route.name === 'Profile') {
             iconName = 'person';
           }
@@ -64,6 +64,13 @@ export default function BottomTabs() {
         component={ContactsScreen} 
         options={{
           tabBarLabel: t('contacts'),
+        }}
+      />
+      <Tab.Screen 
+        name="Channels" 
+        component={ChannelsScreen} 
+        options={{
+          tabBarLabel: 'Channels',
         }}
       />
       <Tab.Screen 

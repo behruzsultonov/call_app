@@ -17,6 +17,11 @@ import AddGroupScreen from '../Pages/AddGroupScreen';
 import GroupInfoScreen from '../Pages/GroupInfoScreen';
 import SelectContactsToAddScreen from '../Pages/SelectContactsToAddScreen';
 import FavoritesScreen from '../Pages/FavoritesScreen';
+import ChannelsScreen from '../Pages/ChannelsScreen';
+import ChannelViewScreen from '../Pages/ChannelViewScreen';
+import CreatePostScreen from '../Pages/CreatePostScreen';
+import MySubscriptionsScreen from '../Pages/MySubscriptionsScreen';
+import CreateChannelScreen from '../Pages/CreateChannelScreen';
 import { WebRTCProvider } from '../contexts/WebRTCContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAuthToken } from '../services/Client';
@@ -44,6 +49,11 @@ export default function AppNavigator({ navigationRef }) {
           <Stack.Screen name="GroupInfo" component={GroupInfoScreen} />
           <Stack.Screen name="SelectContactsToAdd" component={SelectContactsToAddScreen} />
           <Stack.Screen name="Favorites" component={FavoritesScreen} />
+          <Stack.Screen name="Channels" component={ChannelsScreen} />
+          <Stack.Screen name="ChannelView" component={ChannelViewScreen} />
+          <Stack.Screen name="CreatePost" component={CreatePostScreen} />
+          <Stack.Screen name="MySubscriptions" component={MySubscriptionsScreen} />
+          <Stack.Screen name="CreateChannel" component={CreateChannelScreen} />
         </Stack.Navigator>
       </WebRTCProvider>
     </NavigationContainer>
