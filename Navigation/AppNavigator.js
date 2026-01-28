@@ -19,6 +19,7 @@ import SelectContactsToAddScreen from '../Pages/SelectContactsToAddScreen';
 import FavoritesScreen from '../Pages/FavoritesScreen';
 import ChannelsScreen from '../Pages/ChannelsScreen';
 import ChannelViewScreen from '../Pages/ChannelViewScreen';
+import ChannelInfoScreen from '../Pages/ChannelInfoScreen';
 import CreatePostScreen from '../Pages/CreatePostScreen';
 import MySubscriptionsScreen from '../Pages/MySubscriptionsScreen';
 import CreateChannelScreen from '../Pages/CreateChannelScreen';
@@ -51,6 +52,7 @@ export default function AppNavigator({ navigationRef }) {
           <Stack.Screen name="Favorites" component={FavoritesScreen} />
           <Stack.Screen name="Channels" component={ChannelsScreen} />
           <Stack.Screen name="ChannelView" component={ChannelViewScreen} />
+          <Stack.Screen name="ChannelInfo" component={ChannelInfoScreen} />
           <Stack.Screen name="CreatePost" component={CreatePostScreen} />
           <Stack.Screen name="MySubscriptions" component={MySubscriptionsScreen} />
           <Stack.Screen name="CreateChannel" component={CreateChannelScreen} />

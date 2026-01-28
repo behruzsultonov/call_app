@@ -162,27 +162,10 @@ export default function ChatsScreen({ navigation }) {
       // Load subscribed channels
       let channelsData = [];
       try {
-        console.log('[CHANNELS] Loading subscribed channels for user:', userId);
         const channelsResponse = await api.getMySubscribedChannels();
-        console.log('[CHANNELS] API Response Success:', channelsResponse.data.success);
-        console.log('[CHANNELS] Raw API Response:', channelsResponse.data);
         
         if (channelsResponse.data.success) {
           channelsData = channelsResponse.data.data || [];
-          console.log('[CHANNELS] Successfully loaded', channelsData.length, 'channels');
-          console.log('[CHANNELS] Channel data:', channelsData);
-          
-          // Log each channel's key information
-          channelsData.forEach((channel, index) => {
-            console.log(`[CHANNELS] Channel ${index + 1}:`, {
-              id: channel.id,
-              title: channel.title,
-              username: channel.username,
-              subscriber_count: channel.subscriber_count,
-              is_subscribed: channel.is_subscribed,
-              last_post_date: channel.last_post_date
-            });
-          });
         } else {
           console.log('[CHANNELS] API returned failure:', channelsResponse.data.message);
         }
@@ -216,47 +199,40 @@ export default function ChatsScreen({ navigation }) {
         });
         
         // Transform channels to match the chat format
-        console.log('[CHANNELS] Transforming', channelsData.length, 'channels to chat format');
         const formattedChannels = channelsData.map(channel => {
           // Get last post date for time display
           const lastPostTime = channel.last_post_date ? 
             new Date(channel.last_post_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
             '';
           
+          // Check if current user is the channel owner
+          const isOwner = userId && channel.owner_id && parseInt(userId) === parseInt(channel.owner_id);
+          
           const formattedChannel = {
             id: `channel_${channel.id}`,  // Prefix to avoid ID conflicts
             name: channel.title,
-            message: `@${channel.username}`,  // Show username as message
+            message: channel.last_post_text || `@${channel.username}`,  // Show last post text or username as message
             time: lastPostTime,
             unread: 0,  // Channels don't have unread count
             isPrivate: false,
             channelInfo: {
               id: channel.id,
               username: channel.username,
-              subscriberCount: channel.subscriber_count
+              subscriberCount: channel.subscriber_count,
+              ownerId: channel.owner_id  // Add owner_id for ownership check
             },
+            isOwner: isOwner,  // Add ownership flag directly
             type: 'channel'  // Add type to distinguish from chats
           };
           
-          console.log('[CHANNELS] Formatted channel:', {
-            id: formattedChannel.id,
-            name: formattedChannel.name,
-            message: formattedChannel.message,
-            time: formattedChannel.time,
-            channelInfo: formattedChannel.channelInfo
-          });
-          
           return formattedChannel;
         });
-        console.log('[CHANNELS] Total formatted channels:', formattedChannels.length);
         
         // Combine chats and channels
         const allItems = [...formattedChats, ...formattedChannels];
-        console.log('[CHANNELS] Final list contains', formattedChannels.length, 'channels out of', allItems.length, 'total items');
         
         // Log channel items specifically
         const channelItems = allItems.filter(item => item.type === 'channel');
-        console.log('[CHANNELS] Channel items in final list:', channelItems);
         
         setChats(allItems);
         
@@ -368,11 +344,13 @@ export default function ChatsScreen({ navigation }) {
     setIsSearching(true);
     
     try {
-      const response = await api.searchChats(userId, query);
+      // Search in regular chats
+      const chatResponse = await api.searchChats(userId, query);
+      let formattedChats = [];
       
-      if (response.data.success) {
+      if (chatResponse.data.success) {
         // Transform search results to match the expected format
-        const formattedChats = (response.data.data || []).map(chat => {
+        formattedChats = (chatResponse.data.data || []).map(chat => {
           return {
             id: chat.id,
             name: chat.chat_type === 'private' && chat.other_participant_name 
@@ -385,17 +363,56 @@ export default function ChatsScreen({ navigation }) {
             unread: chat.unread_count || 0,
             isPrivate: chat.chat_type === 'private',
             otherParticipantId: chat.other_participant_id,
-            memberCount: chat.member_count || 0  // Add member count for group chats
+            memberCount: chat.member_count || 0,  // Add member count for group chats
+            type: 'chat'  // Add type to distinguish from channels
           };
         });
-        
-        setFilteredChats(formattedChats);
-      } else {
-        console.log('Failed to search chats:', response.data.message);
-        setFilteredChats([]);
       }
+      
+      // Search in channels
+      let formattedChannels = [];
+      try {
+        const channelResponse = await api.searchChannels(query);
+        
+        if (channelResponse.data.success) {
+          formattedChannels = (channelResponse.data.data || []).map(channel => {
+            // Get last post date for time display
+            const lastPostTime = channel.last_post_date ? 
+              new Date(channel.last_post_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+              '';
+            
+            // Check if current user is the channel owner
+            const isOwner = userId && channel.owner_id && parseInt(userId) === parseInt(channel.owner_id);
+            
+            return {
+              id: `channel_${channel.id}`,  // Prefix to avoid ID conflicts
+              name: channel.title,
+              message: `@${channel.username}`,  // Show username/slug instead of last post text
+              time: lastPostTime,
+              unread: 0,  // Channels don't have unread count
+              isPrivate: false,
+              channelInfo: {
+                id: channel.id,
+                username: channel.username,
+                subscriberCount: channel.subscriber_count,
+                ownerId: channel.owner_id  // Add owner_id for ownership check
+              },
+              isOwner: isOwner,  // Add ownership flag directly
+              type: 'channel'  // Add type to distinguish from chats
+            };
+          });
+        }
+      } catch (channelError) {
+        console.log('Error searching channels:', channelError.message);
+        // Continue without channels if there's an error
+      }
+      
+      // Combine chats and channels
+      const allResults = [...formattedChats, ...formattedChannels];
+      
+      setFilteredChats(allResults);
     } catch (error) {
-      console.error('Error searching chats:', error);
+      console.error('Error searching chats and channels:', error);
       setFilteredChats([]);
     } finally {
       setIsSearching(false);
@@ -411,7 +428,10 @@ export default function ChatsScreen({ navigation }) {
     const lowerQuery = query.toLowerCase();
     const filtered = chatsList.filter(chat =>
       (chat.name || '').toLowerCase().includes(lowerQuery) ||
-      (chat.message || '').toLowerCase().includes(lowerQuery)
+      (chat.message || '').toLowerCase().includes(lowerQuery) ||
+      // Add search by channel username for channels
+      (chat.type === 'channel' && chat.channelInfo && chat.channelInfo.username && 
+       chat.channelInfo.username.toLowerCase().includes(lowerQuery))
     );
     
     setFilteredChats(filtered);
@@ -464,17 +484,7 @@ export default function ChatsScreen({ navigation }) {
     );
   };
 
-  const renderChatItem = ({ item }) => {
-    if (item.type === 'channel') {
-      console.log('[CHANNELS] Rendering channel item:', {
-        id: item.id,
-        name: item.name,
-        message: item.message,
-        time: item.time,
-        channelInfo: item.channelInfo
-      });
-    }
-    
+  const renderChatItem = ({ item }) => {    
     return (
     <TouchableOpacity 
       style={[
@@ -487,21 +497,20 @@ export default function ChatsScreen({ navigation }) {
       onPress={() => {
         if (item.type === 'channel') {
           // Navigate to channel view
-          console.log('[CHANNELS] Pressed channel item. Navigating to channel ID:', item.channelInfo.id);
-          console.log('[CHANNELS] Passing channel data:', item);
           navigation.navigate('ChannelView', { 
             channel: {
               id: item.channelInfo.id,
               title: item.name,
               username: item.channelInfo.username,
+              owner_id: item.channelInfo.ownerId,  // Add owner_id for consistency
               subscriber_count: item.channelInfo.subscriberCount,
-              is_owner: false, // This will be updated in ChannelViewScreen
+              last_post_text: item.message,  // Add last post text
+              is_owner: item.isOwner,  // Pass the pre-calculated ownership flag
               is_subscribed: true
             }
           });
         } else {
           // Navigate to regular chat
-          console.log('[CHATS] Pressed chat item. Navigating to chat ID:', item.id);
           navigation.navigate('Chat', { 
             chat: { 
               id: item.id, 
@@ -579,13 +588,10 @@ export default function ChatsScreen({ navigation }) {
       if (response.data.success) {
         // Remove the chat from the list
         setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
-        console.log('Chat deleted successfully');
       } else {
-        console.log('Failed to delete chat:', response.data.message);
         Alert.alert(t('error'), response.data.message || t('failedToDeleteChat'));
       }
     } catch (error) {
-      console.log('Error deleting chat:', error);
       Alert.alert(t('error'), t('failedToDeleteChat'));
     }
   };
@@ -664,7 +670,6 @@ export default function ChatsScreen({ navigation }) {
         ListEmptyComponent={() => {
           const channelCount = chats.filter(item => item.type === 'channel').length;
           const chatCount = chats.filter(item => item.type === 'chat').length;
-          console.log('[CHANNELS] List empty component. Channels:', channelCount, 'Chats:', chatCount, 'Total:', chats.length);
           return (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>

@@ -581,12 +581,16 @@ api.deleteCall = (callId, userId) => {
 // ------------------ CHANNELS ------------------
 // Get all channels
 api.getChannels = () => {
-  return apiClient.get('api/channels/channels.php');
+  return apiClient.get('index.php', {
+    params: {
+      action: 'channels'
+    }
+  });
 };
 
 // Get user's subscribed channels
 api.getMySubscribedChannels = () => {
-  return apiClient.get('api/channels/channels.php', {
+  return apiClient.get('index.php', {
     params: {
       action: 'channels',
       subaction: 'my_channels'
@@ -596,7 +600,7 @@ api.getMySubscribedChannels = () => {
 
 // Get specific channel by ID
 api.getChannelById = (channelId) => {
-  return apiClient.get('api/channels/channels.php', {
+  return apiClient.get('index.php', {
     params: {
       action: 'channels',
       subaction: 'by_id',
@@ -607,22 +611,22 @@ api.getChannelById = (channelId) => {
 
 // Create a new channel
 api.createChannel = (data) => {
-  return apiClient.post('api/channels/channels.php', data);
+  return apiClient.post('index.php?action=channels', data);
 };
 
 // Update a channel
 api.updateChannel = (data) => {
-  return apiClient.put('api/channels/channels.php', data);
+  return apiClient.put('index.php?action=channels', data);
 };
 
 // Delete a channel
 api.deleteChannel = (data) => {
-  return apiClient.delete('api/channels/channels.php', { data });
+  return apiClient.delete('index.php?action=channels', { data });
 };
 
 // Subscribe to a channel
 api.subscribeToChannel = (channelId) => {
-  return apiClient.post('api/channels/channels.php', {}, {
+  return apiClient.post('index.php', {}, {
     params: {
       action: 'channels',
       subaction: 'subscribe',
@@ -633,7 +637,7 @@ api.subscribeToChannel = (channelId) => {
 
 // Unsubscribe from a channel
 api.unsubscribeFromChannel = (channelId) => {
-  return apiClient.post('api/channels/channels.php', {}, {
+  return apiClient.post('index.php', {}, {
     params: {
       action: 'channels',
       subaction: 'unsubscribe',
@@ -642,10 +646,33 @@ api.unsubscribeFromChannel = (channelId) => {
   });
 };
 
+// Search channels by query
+api.searchChannels = (query) => {
+  return apiClient.get('index.php', {
+    params: {
+      action: 'channels',
+      subaction: 'search',
+      q: query
+    }
+  });
+};
+
+// Get channel subscribers
+api.getChannelSubscribers = (channelId) => {
+  return apiClient.get('index.php', {
+    params: {
+      action: 'channels',
+      subaction: 'subscribers',
+      channel_id: Number(channelId)
+    }
+  });
+};
+
 // Get channel posts
 api.getChannelPosts = (channelId) => {
-  return apiClient.get('api/channels/posts.php', {
+  return apiClient.get('index.php', {
     params: {
+      action: 'channel_posts',
       channel_id: Number(channelId)
     }
   });
@@ -653,12 +680,12 @@ api.getChannelPosts = (channelId) => {
 
 // Create a post in a channel
 api.createChannelPost = (data) => {
-  return apiClient.post('api/channels/posts.php', data);
+  return apiClient.post('index.php?action=channel_posts', data);
 };
 
 // Delete a post from a channel
 api.deleteChannelPost = (data) => {
-  return apiClient.delete('api/channels/posts.php', { data });
+  return apiClient.delete('index.php?action=channel_posts', { data });
 };
 
 // ------------------ PUSH NOTIFICATIONS ------------------

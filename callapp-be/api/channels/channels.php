@@ -34,6 +34,10 @@ if ($action === 'channels' && $subaction === 'subscribe') {
     handleGetMySubscribedChannels();
 } elseif ($action === 'channels' && $subaction === 'by_id') {
     handleGetChannelById();
+} elseif ($action === 'channels' && $subaction === 'search') {
+    handleSearchChannels();
+} elseif ($action === 'channels' && $subaction === 'subscribers') {
+    handleGetChannelSubscribers();
 } else {
     switch ($method) {
         case 'GET':
@@ -71,21 +75,22 @@ function handleGetChannels() {
     
     try {
         // Get all public channels with subscriber counts
-        $stmt = $pdo->prepare("
-            SELECT 
-                c.id,
-                c.title,
-                c.description,
-                c.avatar_url,
-                c.username,
-                c.owner_id,
-                c.created_at,
-                (SELECT COUNT(*) FROM channel_members cm WHERE cm.channel_id = c.id) AS subscriber_count,
-                (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = ?) AS is_subscribed
-            FROM channels c
-            ORDER BY c.created_at DESC
+        $stmt = $pdo->prepare("SELECT 
+            c.id,
+            c.title,
+            c.description,
+            c.avatar_url,
+            c.username,
+            c.owner_id,
+            c.created_at,
+            (SELECT COUNT(*) FROM channel_members cm WHERE cm.channel_id = c.id) AS subscriber_count,
+            (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = ?) AS is_subscribed,
+            (SELECT cp.text FROM channel_posts cp WHERE cp.channel_id = c.id ORDER BY cp.created_at DESC LIMIT 1) AS last_post_text,
+            CASE WHEN c.owner_id = ? THEN 1 ELSE 0 END AS is_owner
+        FROM channels c
+        ORDER BY c.created_at DESC
         ");
-        $stmt->execute([$userId]);
+        $stmt->execute([$userId, $userId]);
         $channels = $stmt->fetchAll();
         
         sendResponse(true, "Channels retrieved successfully", $channels);
@@ -483,7 +488,9 @@ function handleGetMySubscribedChannels() {
                 c.owner_id,
                 c.created_at,
                 (SELECT COUNT(*) FROM channel_members cm WHERE cm.channel_id = c.id) AS subscriber_count,
-                (SELECT MAX(cp.created_at) FROM channel_posts cp WHERE cp.channel_id = c.id) AS last_post_date
+                (SELECT MAX(cp.created_at) FROM channel_posts cp WHERE cp.channel_id = c.id) AS last_post_date,
+                (SELECT cp.text FROM channel_posts cp WHERE cp.channel_id = c.id ORDER BY cp.created_at DESC LIMIT 1) AS last_post_text,
+                CASE WHEN c.owner_id = ? THEN 1 ELSE 0 END AS is_owner
             FROM channels c
             WHERE c.id IN (
                 SELECT channel_id FROM channel_members WHERE user_id = ?
@@ -492,7 +499,7 @@ function handleGetMySubscribedChannels() {
             )
             ORDER BY last_post_date DESC
         ");
-        $stmt->execute([$userId, $userId]);
+        $stmt->execute([$userId, $userId, $userId]);
         $channels = $stmt->fetchAll();
         
         sendResponse(true, "Subscribed channels retrieved successfully", $channels);
@@ -532,7 +539,7 @@ function handleGetChannelById() {
                 c.owner_id,
                 c.created_at,
                 (SELECT COUNT(*) FROM channel_members cm WHERE cm.channel_id = c.id) AS subscriber_count,
-                (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = ?) AS is_subscribed,
+                CASE WHEN EXISTS(SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = ?) THEN 1 ELSE 0 END AS is_subscribed,
                 (c.owner_id = ?) AS is_owner
             FROM channels c
             WHERE c.id = ?
@@ -552,4 +559,106 @@ function handleGetChannelById() {
         exit;
     }
 }
-?>
+
+function handleGetChannelSubscribers() {
+    global $pdo;
+    
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+        exit;
+    }
+    
+    $userId = $user['id'];
+    $channelId = isset($_GET['channel_id']) ? (int)validateInput($_GET['channel_id']) : null;
+    
+    if (!$channelId) {
+        sendResponse(false, "Channel ID is required");
+        exit;
+    }
+    
+    try {
+        // Verify user is the owner of the channel
+        $stmt = $pdo->prepare("SELECT owner_id FROM channels WHERE id = ?");
+        $stmt->execute([$channelId]);
+        $channel = $stmt->fetch();
+        
+        if (!$channel) {
+            sendResponse(false, "Channel not found");
+            exit;
+        }
+        
+        if ($channel['owner_id'] != $userId) {
+            sendResponse(false, "You are not authorized to view subscribers for this channel");
+            exit;
+        }
+        
+        // Get subscribers for the channel (only for owner)
+        $stmt = $pdo->prepare("
+            SELECT u.id, u.username, u.phone_number, u.avatar as avatar_url, cm.joined_at
+            FROM users u
+            INNER JOIN channel_members cm ON u.id = cm.user_id
+            WHERE cm.channel_id = ?
+            ORDER BY cm.joined_at DESC
+        ");
+        $stmt->execute([$channelId]);
+        $subscribers = $stmt->fetchAll();
+        
+        sendResponse(true, "Channel subscribers retrieved successfully", $subscribers);
+    } catch (Throwable $e) {
+        error_log("Error retrieving channel subscribers: " . $e->getMessage());
+        sendResponse(false, "Error retrieving channel subscribers: " . $e->getMessage());
+        exit;
+    }
+}
+
+function handleSearchChannels() {
+    global $pdo;
+    
+    // Authenticate request
+    $user = authenticateRequest($pdo);
+    if (!$user) {
+        sendResponse(false, "Authentication required");
+        exit;
+    }
+    
+    $userId = $user['id'];
+    $query = isset($_GET['q']) ? trim(validateInput($_GET['q'])) : '';
+    
+    if (empty($query)) {
+        sendResponse(false, "Search query is required");
+        exit;
+    }
+    
+    try {
+        // Search channels by title or username
+        $searchTerm = "%{$query}%";
+        $stmt = $pdo->prepare("
+            SELECT 
+                c.id,
+                c.title,
+                c.description,
+                c.avatar_url,
+                c.username,
+                c.owner_id,
+                c.created_at,
+                (SELECT COUNT(*) FROM channel_members cm WHERE cm.channel_id = c.id) AS subscriber_count,
+                (SELECT MAX(cp.created_at) FROM channel_posts cp WHERE cp.channel_id = c.id) AS last_post_date,
+                (SELECT cp.text FROM channel_posts cp WHERE cp.channel_id = c.id ORDER BY cp.created_at DESC LIMIT 1) AS last_post_text,
+                (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = ?) AS is_subscribed,
+                (c.owner_id = ?) AS is_owner
+            FROM channels c
+            WHERE c.title LIKE ? OR c.username LIKE ?
+            ORDER BY c.created_at DESC
+        ");
+        $stmt->execute([$userId, $userId, $searchTerm, $searchTerm]);
+        $channels = $stmt->fetchAll();
+        
+        sendResponse(true, "Channels searched successfully", $channels);
+    } catch (Throwable $e) {
+        error_log("Error searching channels: " . $e->getMessage());
+        sendResponse(false, "Error searching channels: " . $e->getMessage());
+        exit;
+    }
+}

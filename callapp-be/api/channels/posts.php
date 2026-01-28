@@ -65,22 +65,18 @@ function handleGetPosts() {
     }
     
     try {
-        // Check if user is subscribed to the channel OR is the owner
-        $stmt = $pdo->prepare("SELECT c.id FROM channels c WHERE c.id = ? AND c.owner_id = ?");
-        $stmt->execute([$channelId, $user['id']]);
-        $isOwner = $stmt->fetch();
+        // Check if channel exists
+        $stmt = $pdo->prepare("SELECT id, owner_id FROM channels WHERE id = ?");
+        $stmt->execute([$channelId]);
+        $channel = $stmt->fetch();
         
-        if (!$isOwner) {
-            // If not owner, check if subscribed
-            $stmt = $pdo->prepare("SELECT * FROM channel_members WHERE channel_id = ? AND user_id = ?");
-            $stmt->execute([$channelId, $user['id']]);
-            $subscription = $stmt->fetch();
-            
-            if (!$subscription) {
-                sendResponse(false, "You must be subscribed to this channel to view posts");
-                exit;
-            }
+        if (!$channel) {
+            sendResponse(false, "Channel not found");
+            exit;
         }
+        
+        // Allow all users to view posts (read access)
+        // Only channel owner can create posts (write access - handled in handleCreatePost)
         
         // Get all posts for the channel ordered by creation date (most recent first)
         $stmt = $pdo->prepare("

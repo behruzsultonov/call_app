@@ -79,7 +79,16 @@ const MySubscriptionsScreen = () => {
   const renderChannel = ({ item }) => (
     <TouchableOpacity
       style={styles.channelCard}
-      onPress={() => navigation.navigate('ChannelView', { channelId: item.id })}
+      onPress={() => navigation.navigate('ChannelView', { 
+        channel: {
+          id: item.id,
+          title: item.title,
+          username: item.username,
+          subscriber_count: item.subscriber_count,
+          is_subscribed: true
+          // is_owner will be determined by ChannelViewScreen's loadChannelInfo
+        }
+      })}
     >
       <View style={styles.channelHeader}>
         {item.avatar_url ? (
@@ -101,7 +110,12 @@ const MySubscriptionsScreen = () => {
           <Text style={styles.subscriberCount}>
             {item.subscriber_count || 0} subscribers
           </Text>
-          {item.last_post_date && (
+          {item.last_post_text && (
+            <Text style={styles.lastPostText} numberOfLines={1}>
+              {item.last_post_text}
+            </Text>
+          )}
+          {item.last_post_date && !item.last_post_text && (
             <Text style={styles.lastPostDate}>
               Last post: {new Date(item.last_post_date).toLocaleDateString()}
             </Text>
@@ -228,6 +242,11 @@ const styles = StyleSheet.create({
   subscriberCount: {
     fontSize: 12,
     color: '#888',
+    marginTop: 2,
+  },
+  lastPostText: {
+    fontSize: 12,
+    color: '#555',
     marginTop: 2,
   },
   lastPostDate: {

@@ -1,43 +1,32 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
+  SafeAreaView,
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   FlatList,
+  TouchableOpacity,
+  TextInput,
   Alert,
   Image,
-  TouchableWithoutFeedback,
-  Modal,
-  AppState,
   KeyboardAvoidingView,
-  SafeAreaView,
   Platform,
-  Keyboard,
+  Modal,
 } from 'react-native';
-import { useTranslation } from 'react-i18next';
-import { useTheme } from '../contexts/ThemeContext';
-import { useWebRTC } from '../contexts/WebRTCContext';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-
 import Header from '../components/Header';
 import api from '../services/Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
-import { Picker } from 'emoji-mart-native';
+import { useFocusEffect } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import ImageView from 'react-native-image-viewing';
-import Video from 'react-native-video';
-import RNFS from 'react-native-fs';
-import { PermissionsAndroid } from 'react-native';
-import Sound from 'react-native-nitro-sound';
-import AudioWaveform from '../components/AudioWaveform';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
 
 function ChannelViewScreen({ route, navigation }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const { makeCall, userId: webRTCUserId } = useWebRTC();
-  
+
   // Get channel data from navigation params
   const { channel } = route.params || {};
   const channelId = channel?.id;
@@ -45,17 +34,10 @@ function ChannelViewScreen({ route, navigation }) {
   const channelDescription = channel?.description || '';
   const channelUsername = channel?.username || '';
   const channelOwnerId = channel?.owner_id || channel?.created_by;
-  const isChannelOwner = channel?.is_owner || (userId && channelOwnerId && parseInt(userId) === parseInt(channelOwnerId)) || false;
+  const [isChannelOwner, setIsChannelOwner] = useState(channel?.is_owner === 1 || channel?.is_owner === true || false);
   const subscriberCount = channel?.subscriber_count || 0;
   const [isSubscribed, setIsSubscribed] = useState(channel?.is_subscribed || false);
-    
-  // Log incoming channel data
-  console.log('[CHANNEL VIEW] Received channel data:', channel);
-  console.log('[CHANNEL VIEW] Channel name for header:', channelName);
-  console.log('[CHANNEL VIEW] Navigation state:', navigation.getState());
-  console.log('[CHANNEL VIEW] Theme primary color:', theme.primary);
-  console.log('[CHANNEL VIEW] Header background:', theme.headerBackground);
-    
+
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,29 +58,39 @@ function ChannelViewScreen({ route, navigation }) {
   const [recordingTime, setRecordingTime] = useState(0);
   const [playingAudioId, setPlayingAudioId] = useState(null);
   const [audioProgress, setAudioProgress] = useState({});
-  const appState = useRef(AppState.currentState);
-  
+
   const [matchIds, setMatchIds] = useState([]);
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
-  
+
   const activeMatchId = matchIds[activeMatchIndex];
 
   useEffect(() => {
     // Load user data and then messages
     loadUserData();
-    
+
     // Load channel info if available
     if (channelId) {
       loadChannelInfo();
     }
-    
+  }, []);
+
+  useEffect(() => {
+    // Recalculate ownership when user ID or channel owner ID changes, but only if is_owner is not set from backend
+    if (userId && channelOwnerId && !channel?.is_owner) {
+      const ownershipCalculated = parseInt(userId) === parseInt(channelOwnerId);
+      console.log('[CHANNEL VIEW] Recalculating ownership - User:', userId, 'Owner:', channelOwnerId, 'Result:', ownershipCalculated);
+      setIsChannelOwner(ownershipCalculated);
+    }
+  }, [userId, channelOwnerId, channel?.is_owner]);
+
+  useEffect(() => {
     // Log channel data for debugging
     console.log('[CHANNEL VIEW] Channel data received:', channel);
     console.log('[CHANNEL VIEW] Channel ID:', channelId);
     console.log('[CHANNEL VIEW] Channel Name:', channelName);
     console.log('[CHANNEL VIEW] Channel Owner ID:', channelOwnerId);
     console.log('[CHANNEL VIEW] Current User ID:', userId);
-    console.log('[CHANNEL VIEW] Is Channel Owner:', isChannelOwner);
+    console.log('[CHANNEL VIEW] Is Channel Owner (state):', isChannelOwner);
   }, [channel, channelId, userId, channelOwnerId, isChannelOwner]);
 
   useEffect(() => {
@@ -117,38 +109,30 @@ function ChannelViewScreen({ route, navigation }) {
   }, [posts, searchQuery]);
 
   // Simplified polling implementation for real-time updates
-  useEffect(() => {
-    const loadChannel = () => {
-      if (channelId && userId && !searchQuery) {
-        loadChannelPosts(false); // Pass false to indicate this is not a manual refresh
-      }
-    };
+  // useEffect(() => {
+  //   const loadChannel = () => {
+  //     if (channelId && userId && !searchQuery) {
+  //       loadChannelPosts(false); // Pass false to indicate this is not a manual refresh
+  //     }
+  //   };
 
-    const refreshChannel = () => {
-      if (channelId && userId && !searchQuery) {
-        loadChannelPosts(false); // Pass false to indicate this is not a manual refresh
-      }
-    };
 
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
-        loadChannel();
-      }
-      appState.current = nextAppState;
-    });
+  //   const subscription = AppState.addEventListener('change', nextAppState => {
+  //     if (
+  //       appState.current.match(/inactive|background/) &&
+  //       nextAppState === 'active'
+  //     ) {
+  //       loadChannel();
+  //     }
+  //     appState.current = nextAppState;
+  //   });
 
-    const intervalId = setInterval(() => {
-      refreshChannel();
-    }, 3000);
 
-    return () => {
-      subscription.remove();
-      clearInterval(intervalId);
-    };
-  }, [channelId, userId, searchQuery]);
+  //   return () => {
+  //     subscription.remove();
+  //     clearInterval(intervalId);
+  //   };
+  // }, [channelId, userId, searchQuery]);
 
   // Add useEffect to clean up audio when component unmounts
   useEffect(() => {
@@ -159,11 +143,22 @@ function ChannelViewScreen({ route, navigation }) {
     };
   }, [playingAudioId]);
 
+  // Load channel info when screen is focused
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (channelId) {
+        loadChannelInfo();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, channelId]);
+
   const loadUserData = async () => {
     try {
       const userDataString = await AsyncStorage.getItem('userData');
       const authToken = await AsyncStorage.getItem('authToken');
-      
+
       if (userDataString && authToken) {
         const user = JSON.parse(userDataString);
         setUserId(user.id);
@@ -175,22 +170,24 @@ function ChannelViewScreen({ route, navigation }) {
 
   const loadChannelInfo = async () => {
     if (!channelId) return;
-    
+
     try {
-      console.log('[CHANNEL VIEW] Loading channel info for ID:', channelId);
       const response = await api.getChannelById(channelId);
-      console.log('[CHANNEL VIEW] Channel info response:', response.data);
-      
+
       if (response.data.success && response.data.data) {
         const channelData = response.data.data;
         setIsSubscribed(channelData.is_subscribed || false);
-        
-        // Update ownership status if needed
-        if (userId && channelData.owner_id) {
-          const ownershipStatus = parseInt(userId) === parseInt(channelData.owner_id);
-          console.log('[CHANNEL VIEW] Calculated ownership:', ownershipStatus);
-          // Note: We can't update isChannelOwner directly since it's derived from props
-          // The component will re-render when channel data updates
+
+        // Use the is_owner field from the backend response
+        if (channelData.is_owner !== undefined) {
+          const ownershipStatus = channelData.is_owner === 1 || channelData.is_owner === true;
+          setIsChannelOwner(ownershipStatus);
+        } else {
+          // Fallback to manual calculation if is_owner is not available
+          if (userId && channelData.owner_id) {
+            const ownershipStatus = parseInt(userId) === parseInt(channelData.owner_id);
+            setIsChannelOwner(ownershipStatus);
+          }
         }
       }
     } catch (error) {
@@ -200,16 +197,16 @@ function ChannelViewScreen({ route, navigation }) {
 
   const loadChannelPosts = async (isManualRefresh = false) => {
     if (!channelId || !userId) return;
-    
+
     try {
       // Only set loading state for manual refreshes
       if (isManualRefresh) {
         setLoading(true);
         setManualRefresh(true);
       }
-      
+
       const response = await api.getChannelPosts(channelId);
-      
+
       if (response.data.success) {
         // Transform posts to match the expected format
         const formattedPosts = (response.data.data || []).map(post => {
@@ -225,9 +222,9 @@ function ChannelViewScreen({ route, navigation }) {
             videoUrl: post.media_url && post.media_type === 'video' ? `http://sadoapp.tj/callapp-be/${post.media_url}` : null
           };
         });
-        
+
         setPosts(formattedPosts);
-        
+
         // после рендера чуть подождём и скроллим вверх (newest posts first)
         setTimeout(() => {
           scrollToTop();
@@ -254,14 +251,14 @@ function ChannelViewScreen({ route, navigation }) {
 
   const createPost = async () => {
     if (!input.trim() || !userId || !channelId) return;
-    
+
     try {
       // Check if user is the channel owner before creating post
       if (!isChannelOwner) {
         Alert.alert(t('error'), t('notChannelOwnerCannotPost'));
         return;
       }
-      
+
       // Create temporary post to show immediately
       const tempId = Date.now();
       const tempPost = {
@@ -273,25 +270,25 @@ function ChannelViewScreen({ route, navigation }) {
         mediaType: 'none',
         isDeleted: false
       };
-      
+
       // Add temporary post to UI
       setPosts(prev => [tempPost, ...prev]);
-      
+
       // Clear input
       setInput('');
-      
+
       // Send post to server
       const postData = {
         channel_id: channelId,
         text: input,
         media_type: 'none'
       };
-      
+
       console.log('Creating post:', postData);
-      
+
       const response = await api.createChannelPost(postData);
       console.log('Create post response:', response.data);
-      
+
       if (response.data.success && response.data.data) {
         // Replace temporary post with actual post from server
         setPosts(prev => {
@@ -299,8 +296,8 @@ function ChannelViewScreen({ route, navigation }) {
           updatedPosts.unshift({
             id: parseInt(response.data.data.id),
             text: response.data.data.text || input,
-            time: response.data.data.created_at ? 
-              new Date(response.data.data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+            time: response.data.data.created_at ?
+              new Date(response.data.data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
               tempPost.time,
             isMe: parseInt(response.data.data.author_id) === parseInt(userId),
             authorUsername: response.data.data.author_username || 'Unknown',
@@ -309,7 +306,7 @@ function ChannelViewScreen({ route, navigation }) {
           });
           return updatedPosts;
         });
-        
+
         // Scroll to top to show new post
         setTimeout(() => scrollToTop(), 100);
       } else {
@@ -332,10 +329,10 @@ function ChannelViewScreen({ route, navigation }) {
       setIsSearching(false);
       return;
     }
-    
+
     setSearchQuery(query);
     setIsSearching(true);
-    
+
     try {
       // For now, we'll filter existing posts locally
       // In a real implementation, you might want to call an API endpoint
@@ -344,7 +341,7 @@ function ChannelViewScreen({ route, navigation }) {
         (post.text || '').toLowerCase().includes(lowerQuery) ||
         (post.authorUsername || '').toLowerCase().includes(lowerQuery)
       );
-      
+
       setPosts(filteredPosts);
     } catch (error) {
       console.error('Error searching posts:', error);
@@ -381,17 +378,20 @@ function ChannelViewScreen({ route, navigation }) {
       <View style={[
         styles.messageContainer,
         item.isMe ? styles.myMessage : styles.otherMessage,
-        { 
+        {
           backgroundColor: item.isMe ? theme.primary : theme.cardBackground,
-          alignSelf: item.isMe ? 'flex-end' : 'flex-start'
+          // Add margin for right-aligned messages (same as in ChatScreen)
+          ...(item.isMe && {
+            marginRight: 16,
+          }),
         }
       ]}>
         {!item.isMe && (
           <Text style={[styles.authorUsername, { color: theme.textSecondary }]}>
-            {item.authorUsername}
+            {channelName}
           </Text>
         )}
-        
+
         {item.mediaType === 'image' && item.imageUrl ? (
           <TouchableOpacity onPress={() => {
             const imageIndex = getImageUrls().findIndex(img => img.uri === item.imageUrl);
@@ -401,18 +401,18 @@ function ChannelViewScreen({ route, navigation }) {
             <Image source={{ uri: item.imageUrl }} style={styles.imageMessage} />
           </TouchableOpacity>
         ) : item.mediaType === 'video' && item.videoUrl ? (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.videoThumbnail}
             onPress={() => setFullscreenVideo({ videoUrl: item.videoUrl })}
           >
             <Icon name="play-arrow" size={40} color="#fff" />
           </TouchableOpacity>
         ) : null}
-        
+
         <Text style={[styles.messageText, { color: item.isMe ? theme.buttonText : theme.text }]}>
           {item.text}
         </Text>
-        
+
         <View style={styles.messageInfo}>
           <Text style={[styles.time, { color: item.isMe ? 'rgba(255,255,255,0.8)' : theme.textSecondary }]}>
             {item.time}
@@ -432,32 +432,15 @@ function ChannelViewScreen({ route, navigation }) {
       quality: 0.8,
     };
 
-    launchImageLibrary(options, (response) => {
-      if (response.didCancel) {
-        console.log('User cancelled image picker');
-      } else if (response.error) {
-        console.log('ImagePicker Error: ', response.error);
-      } else if (response.assets && response.assets[0]) {
-        const asset = response.assets[0];
-        sendImageMessage(asset);
+    launchImageLibrary(options, async (response) => {
+      if (response.didCancel || response.error) {
+        console.log('Image picker cancelled or error:', response.error);
+        return;
       }
-    });
-  };
 
-  const takePhoto = () => {
-    const options = {
-      mediaType: 'photo',
-      quality: 0.8,
-    };
-
-    launchCamera(options, (response) => {
-      if (response.didCancel) {
-        console.log('User cancelled camera');
-      } else if (response.error) {
-        console.log('Camera Error: ', response.error);
-      } else if (response.assets && response.assets[0]) {
-        const asset = response.assets[0];
-        sendImageMessage(asset);
+      if (response.assets && response.assets.length > 0) {
+        const imageAsset = response.assets[0];
+        await sendImageMessage(imageAsset);
       }
     });
   };
@@ -471,7 +454,7 @@ function ChannelViewScreen({ route, navigation }) {
         Alert.alert(t('error'), t('notChannelOwnerCannotPost'));
         return;
       }
-      
+
       // Create temporary post to show immediately
       const tempId = Date.now();
       const tempPost = {
@@ -508,7 +491,7 @@ function ChannelViewScreen({ route, navigation }) {
         media_type: 'image',
         media_url: imageAsset.uri
       });
-      
+
       console.log('Create image post response:', response.data);
 
       if (response.data.success && response.data.data) {
@@ -519,8 +502,8 @@ function ChannelViewScreen({ route, navigation }) {
             id: parseInt(response.data.data.id),
             text: response.data.data.text || '',
             imageUrl: response.data.data.media_url ? `http://sadoapp.tj/callapp-be/${response.data.data.media_url}` : null,
-            time: response.data.data.created_at ? 
-              new Date(response.data.data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+            time: response.data.data.created_at ?
+              new Date(response.data.data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
               tempPost.time,
             isMe: parseInt(response.data.data.author_id) === parseInt(userId),
             authorUsername: response.data.data.author_username || 'Unknown',
@@ -529,7 +512,7 @@ function ChannelViewScreen({ route, navigation }) {
           });
           return updatedPosts;
         });
-        
+
         // Scroll to top
         setTimeout(() => scrollToTop(), 100);
       } else {
@@ -551,14 +534,15 @@ function ChannelViewScreen({ route, navigation }) {
       quality: 0.8,
     };
 
-    launchImageLibrary(options, (response) => {
-      if (response.didCancel) {
-        console.log('User cancelled video picker');
-      } else if (response.error) {
-        console.log('VideoPicker Error: ', response.error);
-      } else if (response.assets && response.assets[0]) {
-        const asset = response.assets[0];
-        sendVideoMessage(asset);
+    launchImageLibrary(options, async (response) => {
+      if (response.didCancel || response.error) {
+        console.log('Video picker cancelled or error:', response.error);
+        return;
+      }
+
+      if (response.assets && response.assets.length > 0) {
+        const videoAsset = response.assets[0];
+        await sendVideoMessage(videoAsset);
       }
     });
   };
@@ -572,7 +556,7 @@ function ChannelViewScreen({ route, navigation }) {
         Alert.alert(t('error'), t('notChannelOwnerCannotPost'));
         return;
       }
-      
+
       // Create temporary post to show immediately
       const tempId = Date.now();
       const tempPost = {
@@ -596,7 +580,7 @@ function ChannelViewScreen({ route, navigation }) {
         media_type: 'video',
         media_url: videoAsset.uri
       });
-      
+
       console.log('Create video post response:', response.data);
 
       if (response.data.success && response.data.data) {
@@ -607,8 +591,8 @@ function ChannelViewScreen({ route, navigation }) {
             id: parseInt(response.data.data.id),
             text: response.data.data.text || '',
             videoUrl: response.data.data.media_url ? `http://sadoapp.tj/callapp-be/${response.data.data.media_url}` : null,
-            time: response.data.data.created_at ? 
-              new Date(response.data.data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+            time: response.data.data.created_at ?
+              new Date(response.data.data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
               tempPost.time,
             isMe: parseInt(response.data.data.author_id) === parseInt(userId),
             authorUsername: response.data.data.author_username || 'Unknown',
@@ -617,7 +601,7 @@ function ChannelViewScreen({ route, navigation }) {
           });
           return updatedPosts;
         });
-        
+
         // Scroll to top
         setTimeout(() => scrollToTop(), 100);
       } else {
@@ -633,29 +617,46 @@ function ChannelViewScreen({ route, navigation }) {
     }
   };
 
+  const handleSubscribe = async () => {
+    if (!userId || !channelId) return;
+
+    try {
+      const action = isSubscribed ? 'unsubscribeFromChannel' : 'subscribeToChannel';
+      const response = await api[action](channelId);
+
+      if (response.data.success) {
+        setIsSubscribed(!isSubscribed);
+        
+        // Reload channel info to get updated subscriber count
+        await loadChannelInfo();
+        
+        if (isSubscribed) {
+          navigation.navigate('Chats');
+        }
+      } else {
+        Alert.alert(t('error'), response.data.message || t('failedToSubscribe'));
+      }
+    } catch (error) {
+      console.log('Error subscribing/unsubscribing:', error);
+      Alert.alert(t('error'), t('failedToSubscribe'));
+    }
+  };
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom', 'left', 'right']}>
-      <Header 
-        title={channelName}
-        onBackPress={() => navigation.goBack()} 
-        subtitle={`${subscriberCount} subscribers`}
-      />
-      {/* DEBUG: Visible back button test */}
-      <TouchableOpacity 
-        onPress={() => navigation.goBack()}
-        style={{
-          position: 'absolute',
-          top: 50,
-          left: 16,
-          zIndex: 1000,
-          backgroundColor: 'red',
-          padding: 10,
-          borderRadius: 20
-        }}
-      >
-        <Text style={{color: 'white', fontWeight: 'bold'}}>BACK</Text>
-      </TouchableOpacity>
-      
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <View>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('ChannelInfo', { channel })}
+        >
+          <Header
+            title={channelName}
+            onBack={() => navigation.goBack()}
+            subtitle={channel?.last_post_text ? channel.last_post_text : `${subscriberCount} subscribers`}
+          />
+        </TouchableOpacity>
+      </View>
+
       <FlatList
         ref={listRef}
         data={posts}
@@ -672,60 +673,67 @@ function ChannelViewScreen({ route, navigation }) {
           const isBottom = contentOffset.y <= 10;
           setIsAtBottom(isBottom);
         }}
-        ListHeaderComponent={
-          <Text style={[styles.centerDate, { color: theme.text, marginBottom: 10 }]}> {t('today')} </Text>
-        }
       />
 
-      {/* TEMPORARY: Show input for debugging - remove this in production */}
-      {(isChannelOwner || true) && (
-        <KeyboardAvoidingView 
+      {/* Show input for channel owner, subscribe button for others */}
+      {isChannelOwner ? (
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
         >
-          <View style={[styles.inputContainer, { 
+          <View style={[styles.inputContainer, {
             backgroundColor: theme.cardBackground,
             borderColor: theme.border,
           }]}>
             <TouchableOpacity onPress={() => {
+              // Show action sheet for media selection - same as in ChatScreen
               Alert.alert(
                 t('selectMedia'),
                 t('chooseMediaType'),
                 [
-                  { text: t('camera'), onPress: takePhoto },
-                  { text: t('gallery'), onPress: selectImage },
-                  { text: t('video'), onPress: selectVideo },
-                  { text: t('cancel'), style: 'cancel' }
-                ]
+                  {
+                    text: t('image'),
+                    onPress: selectImage,
+                  },
+                  {
+                    text: t('video'),
+                    onPress: selectVideo,
+                  },
+                  {
+                    text: t('cancel'),
+                    style: 'cancel',
+                  },
+                ],
+                { cancelable: true }
               );
             }}>
               <Icon name="attach-file" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
-            
+
             <TextInput
               ref={textInputRef}
-              style={[styles.input, { 
+              style={[styles.input, {
                 color: theme.text,
               }]}
-              placeholder={isChannelOwner ? t('typePost') : t('notChannelOwner')}
+              placeholder={t('typePost')}
               placeholderTextColor={theme.textSecondary}
               value={input}
               onChangeText={setInput}
               multiline
-              editable={isChannelOwner}
+              editable={true}
             />
-            
+
             <View style={styles.rightIcons}>
               <TouchableOpacity style={styles.iconButton} onPress={handleEmojiPress}>
                 <Icon name="mood" size={24} color="#888888" />
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.iconButton}
-                onPress={input.trim() && isChannelOwner ? createPost : null}
-                disabled={!isChannelOwner}
+                onPress={input.trim() ? createPost : null}
+                disabled={!input.trim()}
               >
-                {input.trim() && isChannelOwner ? (
+                {input.trim() ? (
                   <Icon name="send" size={24} color={theme.primary} />
                 ) : (
                   <Icon name="send" size={24} color={theme.textSecondary} />
@@ -734,17 +742,21 @@ function ChannelViewScreen({ route, navigation }) {
             </View>
           </View>
         </KeyboardAvoidingView>
+      ) : (
+        // Subscribe button for non-owners
+        <View style={[styles.subscribeContainer, { backgroundColor: theme.cardBackground }]}>
+          <TouchableOpacity
+            style={[styles.subscribeButton, { backgroundColor: theme.primary }]}
+            onPress={handleSubscribe}
+          >
+            <Text style={[styles.subscribeButtonText, { color: theme.buttonText }]}>
+              {isSubscribed ? t('unsubscribe') : t('subscribe')}
+            </Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* модалки лучше держать снаружи KAV */}
-      <ImageView
-        images={getImageUrls()}
-        imageIndex={imageViewerIndex}
-        visible={visibleImageViewer}
-        onRequestClose={() => setVisibleImageViewer(false)}
-        animationType="fade"
-        presentationStyle="overFullScreen"
-      />
 
       <Modal
         visible={!!fullscreenVideo}
@@ -863,11 +875,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
 
-  iconButton: {
-    padding: 5,
-    marginHorizontal: 2,
-  },
-
   input: {
     flex: 1,
     minHeight: 40,
@@ -882,27 +889,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  fullscreenVideoContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-    justifyContent: 'center',
+  iconButton: {
+    padding: 8,
+  },
+  subscribeContainer: {
+    padding: 16,
+    borderTopWidth: 1,
+  },
+  subscribeButton: {
+    paddingVertical: 16,
+    borderRadius: 8,
     alignItems: 'center',
   },
-
-  fullscreenVideo: {
-    width: '100%',
-    height: '100%',
+  subscribeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
-
-  closeFullscreenButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    padding: 10,
-    zIndex: 999,
-  }
 });
-
 export default ChannelViewScreen;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

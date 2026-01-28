@@ -1,0 +1,2 @@
+-- Add updated_at column to channels table
+ALTER TABLE channels ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;

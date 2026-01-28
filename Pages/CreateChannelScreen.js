@@ -16,9 +16,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Header from '../components/Header';
+import { useTheme } from '../contexts/ThemeContext';
 
 const CreateChannelScreen = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [username, setUsername] = useState('');
@@ -123,41 +125,56 @@ const CreateChannelScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Header 
         title="Create Channel"
         onBack={() => navigation.goBack()}
       />
       <ScrollView style={styles.scrollContainer}>
-        <View style={styles.form}>
+        <View style={[styles.form, { backgroundColor: theme.background }]}>
           {/* Channel Title */}
-          <Text style={styles.label}>Channel Title *</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Channel Title *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { 
+              backgroundColor: theme.cardBackground,
+              color: theme.text,
+              borderColor: theme.border,
+            }]}
             value={title}
             onChangeText={setTitle}
             placeholder="Enter channel title"
+            placeholderTextColor={theme.textSecondary}
             maxLength={100}
           />
 
           {/* Username */}
-          <Text style={styles.label}>Username *</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Username *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { 
+              backgroundColor: theme.cardBackground,
+              color: theme.text,
+              borderColor: theme.border,
+            }]}
             value={username}
             onChangeText={setUsername}
             placeholder="Enter username (a-z, 0-9, _ only)"
+            placeholderTextColor={theme.textSecondary}
             maxLength={50}
           />
-          <Text style={styles.hint}>Unique identifier for your channel (e.g., @mychannel)</Text>
+          <Text style={[styles.hint, { color: theme.textSecondary }]}>Unique identifier for your channel (e.g., @mychannel)</Text>
 
           {/* Description */}
-          <Text style={styles.label}>Description (Optional)</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Description (Optional)</Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
+            style={[styles.textArea, { 
+              backgroundColor: theme.cardBackground,
+              color: theme.text,
+              borderColor: theme.border,
+            }]}
             value={description}
             onChangeText={setDescription}
             placeholder="Describe your channel..."
+            placeholderTextColor={theme.textSecondary}
             multiline
             textAlignVertical="top"
             numberOfLines={4}
@@ -165,34 +182,37 @@ const CreateChannelScreen = () => {
           />
 
           {/* Avatar */}
-          <Text style={styles.label}>Avatar (Optional)</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Avatar (Optional)</Text>
           {avatarUri ? (
             <View style={styles.avatarContainer}>
               <Image source={{ uri: avatarUri }} style={styles.avatarPreview} />
               <TouchableOpacity
-                style={styles.removeAvatarButton}
+                style={[styles.removeAvatarButton, { backgroundColor: theme.primary }]}
                 onPress={() => setAvatarUri(null)}
               >
-                <Text style={styles.removeAvatarText}>Remove</Text>
+                <Text style={[styles.removeAvatarText, { color: theme.buttonText }]}>Remove</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <TouchableOpacity style={styles.avatarButton} onPress={selectAvatar}>
-              <Text style={styles.avatarButtonText}>Select Avatar Image</Text>
+            <TouchableOpacity 
+              style={[styles.avatarButton, { backgroundColor: theme.primary }]} 
+              onPress={selectAvatar}
+            >
+              <Text style={[styles.avatarButtonText, { color: theme.buttonText }]}>Select Avatar Image</Text>
             </TouchableOpacity>
           )}
 
           {/* Create Button */}
           <View style={styles.bottomContainer}>
             <TouchableOpacity
-              style={[styles.createButton, loading && styles.disabledButton]}
+              style={[styles.createButton, loading && styles.disabledButton, { backgroundColor: theme.primary }]}
               onPress={createChannel}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={theme.buttonText} />
               ) : (
-                <Text style={styles.createButtonText}>Create Channel</Text>
+                <Text style={[styles.createButtonText, { color: theme.buttonText }]}>Create Channel</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -205,10 +225,8 @@ const CreateChannelScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   scrollContainer: {
-    backgroundColor: '#f5f5f5',
   },
   form: {
     padding: 16,
@@ -216,40 +234,42 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 8,
     marginTop: 16,
   },
   input: {
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+    marginBottom: 12,
   },
   textArea: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
     minHeight: 100,
     paddingTop: 12,
+    marginBottom: 12,
   },
   hint: {
     fontSize: 12,
-    color: '#888',
     marginTop: 4,
   },
   avatarButton: {
-    backgroundColor: '#007AFF',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
+    marginBottom: 12,
   },
   avatarButtonText: {
-    color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
   },
   avatarContainer: {
     alignItems: 'center',
+    marginBottom: 12,
   },
   avatarPreview: {
     width: 100,
@@ -258,30 +278,27 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   removeAvatarButton: {
-    backgroundColor: '#ff3b30',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
   },
   removeAvatarText: {
-    color: '#fff',
     fontWeight: 'bold',
+    fontSize: 14,
   },
   bottomContainer: {
     marginTop: 32,
     marginBottom: 16,
   },
   createButton: {
-    backgroundColor: '#007AFF',
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
   disabledButton: {
-    backgroundColor: '#ccc',
+    opacity: 0.6,
   },
   createButtonText: {
-    color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
   },

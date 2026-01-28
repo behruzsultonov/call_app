@@ -75,6 +75,14 @@ switch ($action) {
         require_once __DIR__ . '/api/chats/notification_settings.php';
         break;
         
+    case 'channels':
+        require_once __DIR__ . '/api/channels/channels.php';
+        break;
+        
+    case 'channel_posts':
+        require_once __DIR__ . '/api/channels/posts.php';
+        break;
+        
     // PUSH NOTIFICATION ENDPOINT
     case 'push_token':
         require_once __DIR__ . '/api/push/token.php';

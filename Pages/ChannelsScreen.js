@@ -91,12 +91,30 @@ const ChannelsScreen = () => {
             navigation.navigate('ChannelView', { channel: response.data.data });
           } else {
             // Fallback to just the ID if detailed fetch fails
-            navigation.navigate('ChannelView', { channel: item });
+            navigation.navigate('ChannelView', { 
+              channel: {
+                id: item.id,
+                title: item.title,
+                username: item.username,
+                subscriber_count: item.subscriber_count,
+                is_subscribed: item.is_subscribed,
+                is_owner: item.is_owner  // Add is_owner property
+              }
+            });
           }
         } catch (error) {
           console.error('Error fetching channel details:', error);
           // Navigate with the available item data
-          navigation.navigate('ChannelView', { channel: item });
+          navigation.navigate('ChannelView', { 
+            channel: {
+              id: item.id,
+              title: item.title,
+              username: item.username,
+              subscriber_count: item.subscriber_count,
+              is_subscribed: item.is_subscribed,
+              is_owner: item.is_owner  // Add is_owner property
+            }
+          });
         }
       }}
     >
@@ -123,17 +141,20 @@ const ChannelsScreen = () => {
         </View>
       </View>
       <View style={styles.channelActions}>
-        <TouchableOpacity
-          style={[
-            styles.subscribeButton,
-            item.is_subscribed && styles.subscribedButton,
-          ]}
-          onPress={() => subscribeToChannel(item.id)}
-        >
-          <Text style={styles.subscribeButtonText}>
-            {item.is_subscribed ? 'Subscribed' : 'Subscribe'}
-          </Text>
-        </TouchableOpacity>
+        {/* Show subscribe button only if user is not the owner */}
+        {!item.is_owner && (
+          <TouchableOpacity
+            style={[
+              styles.subscribeButton,
+              item.is_subscribed && styles.subscribedButton,
+            ]}
+            onPress={() => subscribeToChannel(item.id)}
+          >
+            <Text style={styles.subscribeButtonText}>
+              {item.is_subscribed ? 'Subscribed' : 'Subscribe'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -155,12 +176,6 @@ const ChannelsScreen = () => {
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        <TouchableOpacity
-          style={styles.createChannelButton}
-          onPress={() => navigation.navigate('CreateChannel')}
-        >
-          <Text style={styles.createChannelButtonText}>Create Channel</Text>
-        </TouchableOpacity>
       </View>
       
       <FlatList
@@ -267,6 +282,11 @@ const styles = StyleSheet.create({
   subscriberCount: {
     fontSize: 12,
     color: '#888',
+    marginTop: 2,
+  },
+  lastPostText: {
+    fontSize: 12,
+    color: '#555',
     marginTop: 2,
   },
   channelActions: {
