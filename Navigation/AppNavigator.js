@@ -23,6 +23,8 @@ import ChannelInfoScreen from '../Pages/ChannelInfoScreen';
 import CreatePostScreen from '../Pages/CreatePostScreen';
 import MySubscriptionsScreen from '../Pages/MySubscriptionsScreen';
 import CreateChannelScreen from '../Pages/CreateChannelScreen';
+import PinScreen from '../Pages/PinScreen';
+import SecuritySettingsScreen from '../Pages/SecuritySettingsScreen';
 import { WebRTCProvider } from '../contexts/WebRTCContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAuthToken } from '../services/Client';
@@ -56,6 +58,8 @@ export default function AppNavigator({ navigationRef }) {
           <Stack.Screen name="CreatePost" component={CreatePostScreen} />
           <Stack.Screen name="MySubscriptions" component={MySubscriptionsScreen} />
           <Stack.Screen name="CreateChannel" component={CreateChannelScreen} />
+          <Stack.Screen name="Pin" component={PinScreen} />
+          <Stack.Screen name="SecuritySettings" component={SecuritySettingsScreen} />
         </Stack.Navigator>
       </WebRTCProvider>
     </NavigationContainer>

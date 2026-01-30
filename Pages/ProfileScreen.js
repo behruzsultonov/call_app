@@ -191,7 +191,7 @@ export default function ProfileScreen({ navigation }) {
 
       <View style={[styles.block, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
         <MenuItem icon="notifications-none" color={theme.primary} label={t('notifications')} theme={theme} />
-        <MenuItem icon="lock-outline" color={theme.primary} label={t('privacyAndSecurity')} theme={theme} />
+        <MenuItem icon="lock-outline" color={theme.primary} label={t('privacyAndSecurity')} theme={theme} onPress={() => navigation.navigate('SecuritySettings')} />
         <MenuItem icon="call" color={theme.primary} label={t('callSettings')} theme={theme} />
         <MenuItem icon="storage" color={theme.primary} label={t('dataAndStorage')} theme={theme} />
         <MenuItem icon="palette" color={theme.primary} label={t('appearance')} theme={theme} onPress={handleThemePress} />

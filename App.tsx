@@ -9,7 +9,7 @@ import React, { useEffect, useRef } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
 import { NavigationContainerRef } from '@react-navigation/native';
-import AppNavigator from './Navigation/AppNavigator';
+import AppWrapper from './AppWrapper';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './localization/i18n';
@@ -164,7 +164,7 @@ function App() {
     <SafeAreaProvider>
       <LanguageProvider>
         <ThemeProvider>
-          <AppNavigator navigationRef={navigationRef} />
+          <AppWrapper navigationRef={navigationRef} />
         </ThemeProvider>
       </LanguageProvider>
     </SafeAreaProvider>
